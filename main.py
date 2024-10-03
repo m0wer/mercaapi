@@ -1,10 +1,22 @@
+import asyncio
+import sys
+import time
+
+import click
 from fastapi import FastAPI, Depends, Request
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import RedirectResponse
 from sqlmodel import Session, select
 from app.database import create_db_and_tables, get_session
+from app.parser import parse_mercadona
 from app.models import Product, Category
-import time
+from loguru import logger
+
+# Configure loguru
+logger.remove()
+logger.add(
+    sys.stdout, colorize=True, format="<green>{time}</green> <level>{message}</level>"
+)
 
 app = FastAPI()
 
@@ -63,7 +75,13 @@ async def redirect_to_docs():
     return RedirectResponse(url="/api/docs")
 
 
-if __name__ == "__main__":
-    import uvicorn
+@click.command()
+@click.option("--max-requests", default=60, help="Maximum requests per minute")
+def main(max_requests):
+    logger.info("Starting the Mercadona parser")
+    asyncio.run(parse_mercadona(max_requests))
+    logger.info("Parsing completed")
 
-    uvicorn.run(app, host="0.0.0.0", port=80)
+
+if __name__ == "__main__":
+    main()
