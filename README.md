@@ -76,6 +76,14 @@ To set up the development environment:
    uvicorn app.main:app --reload
    ```
 
+## Testing
+
+To run the tests, from the repository root:
+
+```
+python3 -m pytest tests/
+```
+
 ## Contributing
 
 Contributions are welcome! Please feel free to submit a Pull Request.
