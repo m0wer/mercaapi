@@ -9,3 +9,4 @@ COPY ./app /app/app
 COPY ./main.py /app/main.py
 COPY ./alembic.ini /app/alembic.ini
 COPY ./migrations/ /app/migrations
+COPY ./static/ /app/static
