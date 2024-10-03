@@ -11,6 +11,7 @@ def extractor():
     return GeminiNutritionalFactsExtractor(api_key)
 
 
+@pytest.mark.xfail(reason="Tests just to measure accuracy")
 @pytest.mark.parametrize(
     "image_url,expected_output",
     [
