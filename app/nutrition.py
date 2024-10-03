@@ -5,6 +5,7 @@ import loguru
 import re
 from typing import Dict, Any
 
+
 class GeminiNutritionalFactsExtractor:
     def __init__(self, api_key: str, model: str = "gemini-1.5-flash-latest"):
         self.api_key = api_key
@@ -18,10 +19,12 @@ class GeminiNutritionalFactsExtractor:
         loguru.logger.debug(f"Downloading image from {image_url}")
         response = requests.get(image_url)
         if response.status_code != 200:
-            raise Exception(f"Failed to download image. Status code: {response.status_code}")
+            raise Exception(
+                f"Failed to download image. Status code: {response.status_code}"
+            )
         image_data = response.content
         # Get image metadata
-        mime_type = response.headers.get('Content-Type', 'image/jpeg')
+        mime_type = response.headers.get("Content-Type", "image/jpeg")
         num_bytes = len(image_data)
         display_name = "TEXT"
 
@@ -31,43 +34,50 @@ class GeminiNutritionalFactsExtractor:
             "X-Goog-Upload-Command": "start",
             "X-Goog-Upload-Header-Content-Length": str(num_bytes),
             "X-Goog-Upload-Header-Content-Type": mime_type,
-            "Content-Type": "application/json"
+            "Content-Type": "application/json",
         }
         data = json.dumps({"file": {"display_name": display_name}})
         loguru.logger.debug(f"Initiating image upload with metadata: {data}")
-        response = requests.post(f"{self.upload_url}?key={self.api_key}", headers=headers, data=data)
+        response = requests.post(
+            f"{self.upload_url}?key={self.api_key}", headers=headers, data=data
+        )
         if response.status_code != 200:
-            raise Exception(f"Failed to initiate upload. Status code: {response.status_code}")
-        upload_url = response.headers.get('X-Goog-Upload-URL')
+            raise Exception(
+                f"Failed to initiate upload. Status code: {response.status_code}"
+            )
+        upload_url = response.headers["X-Goog-Upload-URL"]
         loguru.logger.debug(f"Upload URL: {upload_url}")
 
         # Upload the actual bytes
         headers = {
             "Content-Length": str(num_bytes),
             "X-Goog-Upload-Offset": "0",
-            "X-Goog-Upload-Command": "upload, finalize"
+            "X-Goog-Upload-Command": "upload, finalize",
         }
         loguru.logger.debug("Uploading image data")
         response = requests.post(upload_url, headers=headers, data=image_data)
         if response.status_code != 200:
-            raise Exception(f"Failed to upload image. Status code: {response.status_code}")
+            raise Exception(
+                f"Failed to upload image. Status code: {response.status_code}"
+            )
         file_info = response.json()
         loguru.logger.debug(f"Upload successful. File info: {file_info}")
-        return file_info['file']['uri']
+        return file_info["file"]["uri"]
 
     def extract_info_from_image_uri(self, file_uri: str) -> Dict[str, Any]:
-        headers = {
-            "Content-Type": "application/json"
-        }
+        headers = {"Content-Type": "application/json"}
         data = {
-            "contents": [{
-                "parts":[{
-                    "file_data": {
-                        "mime_type": "image/jpeg",
-                        "file_uri": file_uri
-                    }
-                }, {
-                    "text": """
+            "contents": [
+                {
+                    "parts": [
+                        {
+                            "file_data": {
+                                "mime_type": "image/jpeg",
+                                "file_uri": file_uri,
+                            }
+                        },
+                        {
+                            "text": """
                     Extract all nutritional information from this image. 
                     Provide the output as a JSON object with the following structure:
                     {
@@ -87,22 +97,24 @@ class GeminiNutritionalFactsExtractor:
                     Use null for any values not present in the image.
                     Ensure all numeric values are numbers, not strings.
                     """
-                }]
-            }]
+                        },
+                    ]
+                }
+            ]
         }
-        loguru.logger.info(f"Extracting nutritional information from image with URI: {file_uri}")
+        loguru.logger.info(
+            f"Extracting nutritional information from image with URI: {file_uri}"
+        )
         response = requests.post(
-            f"{self.generate_url}?key={self.api_key}",
-            headers=headers,
-            json=data
+            f"{self.generate_url}?key={self.api_key}", headers=headers, json=data
         )
 
         if response.status_code == 200:
-            json_str = response.json()['candidates'][0]['content']['parts'][0]['text']
+            json_str = response.json()["candidates"][0]["content"]["parts"][0]["text"]
             # Extract the JSON object from the response text
             loguru.logger.debug(f"Response text: {json_str}")
-            json_str = re.sub(r'^```json\s*\n', '', json_str)
-            json_str = re.sub(r'\n\s*```$', '', json_str)
+            json_str = re.sub(r"^```json\s*\n", "", json_str)
+            json_str = re.sub(r"\n\s*```$", "", json_str)
             json_obj = json.loads(json_str)
             loguru.logger.info(f"Nutritional information extracted: {json_obj}")
             return json_obj
@@ -115,6 +127,7 @@ class GeminiNutritionalFactsExtractor:
         file_uri = self.upload_image(image_url)
         nutritional_info = self.extract_info_from_image_uri(file_uri)
         return nutritional_info
+
 
 # Example usage
 if __name__ == "__main__":
