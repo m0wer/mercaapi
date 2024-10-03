@@ -1,6 +1,7 @@
 services:
   app:
     build: .
+    image: ghcr.io/m0wer/mercaapi:master
     ports:
       - "8000:80"
     volumes:

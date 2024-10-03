@@ -8,3 +8,4 @@ RUN pip install --no-cache-dir --upgrade -r /app/requirements.txt
 COPY ./app /app/app
 COPY ./main.py /app/main.py
 COPY ./alembic.ini /app/alembic.ini
+COPY ./migrations/ /app/migrations
