@@ -1,6 +1,8 @@
 import asyncio
+import time
+
 import click
-from fastapi import FastAPI, Depends
+from fastapi import FastAPI, Depends, Request
 from sqlmodel import Session, select
 from app.database import create_db_and_tables, get_session
 from app.parser import parse_mercadona
@@ -15,6 +17,15 @@ logger.remove()
 logger.add(
     sys.stdout, colorize=True, format="<green>{time}</green> <level>{message}</level>"
 )
+
+
+@app.middleware("http")
+async def add_process_time_header(request: Request, call_next):
+    start_time = time.perf_counter()
+    response = await call_next(request)
+    process_time = time.perf_counter() - start_time
+    response.headers["X-Process-Time"] = str(process_time)
+    return response
 
 
 @app.on_event("startup")
