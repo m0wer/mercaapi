@@ -1,0 +1,9 @@
+aiohttp
+alembic
+click
+fastapi
+loguru
+requests
+sqlmodel
+tenacity
+uvicorn

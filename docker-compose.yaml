@@ -1,0 +1,10 @@
+services:
+  app:
+    build: .
+    ports:
+      - "8000:80"
+    volumes:
+      - ./app:/app/app
+      - ./main.py:/app/main.py
+      - ./alembic.ini:/app/alembic.ini
+    command: ["python", "main.py", "--max-requests", "60"]

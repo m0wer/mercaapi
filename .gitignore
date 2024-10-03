@@ -1,0 +1,6 @@
+mercadona.db
+
+# Python
+
+__pycache__/
+*.pyc
