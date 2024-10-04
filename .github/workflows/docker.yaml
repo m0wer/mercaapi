@@ -1,9 +1,12 @@
 name: image build
 on:
   workflow_run:
-    workflows: [Run Tests]
-    branches: [master]
-    types: [completed]
+    workflows:
+      - Run Tests
+    branches:
+      - master
+    types:
+      - completed
 
 env:
   REGISTRY: ghcr.io
