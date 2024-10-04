@@ -2,12 +2,14 @@ import asyncio
 from datetime import datetime
 import time
 
-import aiohttp
-from tenacity import retry, stop_after_attempt, wait_fixed, retry_if_exception_type
-from sqlmodel import Session, select
-from app.models import Category, Product, ProductImage
 from app.database import engine
+from app.models import Category, Product, ProductImage
 from loguru import logger
+from sqlalchemy.exc import IntegrityError
+from sqlmodel import Session, select
+from tenacity import retry, stop_after_attempt, wait_fixed, retry_if_exception_type
+import aiohttp
+
 
 BASE_URL = "https://tienda.mercadona.es/api"
 
@@ -85,48 +87,47 @@ async def parse_products(session, category_id, rate_limiter, existing_product_id
     if category_data and "categories" in category_data:
         for subcategory in category_data["categories"]:
             for product in subcategory.get("products", []):
-                if product["id"] not in existing_product_ids:
-                    product_details = await fetch(
-                        session, f"{BASE_URL}/products/{product['id']}", rate_limiter
+                product_details = await fetch(
+                    session, f"{BASE_URL}/products/{product['id']}", rate_limiter
+                )
+                if product_details:
+                    yield Product(
+                        id=product_details["id"],
+                        ean=product_details.get("ean"),
+                        slug=product_details["slug"],
+                        brand=product_details.get("brand"),
+                        name=product_details["display_name"],
+                        price=float(
+                            product_details["price_instructions"]["unit_price"]
+                        ),
+                        category_id=category_id,
+                        description=product_details.get("details", {}).get(
+                            "description"
+                        ),
+                        origin=product_details.get("origin"),
+                        packaging=product_details.get("packaging"),
+                        unit_name=product_details["price_instructions"].get(
+                            "unit_name"
+                        ),
+                        unit_size=product_details["price_instructions"].get(
+                            "unit_size"
+                        ),
+                        is_variable_weight=product_details.get(
+                            "is_variable_weight", False
+                        ),
+                        is_pack=product_details["price_instructions"].get(
+                            "is_pack", False
+                        ),
+                        images=[
+                            ProductImage(
+                                zoom_url=photo["zoom"],
+                                regular_url=photo["regular"],
+                                thumbnail_url=photo["thumbnail"],
+                                perspective=photo["perspective"],
+                            )
+                            for photo in product_details.get("photos", [])
+                        ],
                     )
-                    if product_details:
-                        yield Product(
-                            id=product_details["id"],
-                            ean=product_details.get("ean"),
-                            slug=product_details["slug"],
-                            brand=product_details.get("brand"),
-                            name=product_details["display_name"],
-                            price=float(
-                                product_details["price_instructions"]["unit_price"]
-                            ),
-                            category_id=category_id,
-                            description=product_details.get("details", {}).get(
-                                "description"
-                            ),
-                            origin=product_details.get("origin"),
-                            packaging=product_details.get("packaging"),
-                            unit_name=product_details["price_instructions"].get(
-                                "unit_name"
-                            ),
-                            unit_size=product_details["price_instructions"].get(
-                                "unit_size"
-                            ),
-                            is_variable_weight=product_details.get(
-                                "is_variable_weight", False
-                            ),
-                            is_pack=product_details["price_instructions"].get(
-                                "is_pack", False
-                            ),
-                            images=[
-                                ProductImage(
-                                    zoom_url=photo["zoom"],
-                                    regular_url=photo["regular"],
-                                    thumbnail_url=photo["thumbnail"],
-                                    perspective=photo["perspective"],
-                                )
-                                for photo in product_details.get("photos", [])
-                            ],
-                        )
 
 
 async def parse_category_products(session, category_id, rate_limiter):
@@ -137,20 +138,42 @@ async def parse_category_products(session, category_id, rate_limiter):
             ).all()
         )
 
-    new_products = [
-        product
-        async for product in parse_products(
-            session, category_id, rate_limiter, existing_product_ids
-        )
-    ]
+    new_products = []
+    updated_products = []
+
+    async for product in parse_products(
+        session, category_id, rate_limiter, existing_product_ids
+    ):
+        if product.id in existing_product_ids:
+            updated_products.append(product)
+        else:
+            new_products.append(product)
 
     with Session(engine) as db_session:
         for product in new_products:
-            logger.info(f"Adding new product: {product.name}")
-            db_session.add(product)
-        db_session.commit()
+            try:
+                logger.info(f"Adding new product: {product.name}")
+                db_session.add(product)
+                db_session.commit()
+            except IntegrityError:
+                logger.warning(f"Product {product.id} already exists, updating instead")
+                db_session.rollback()
+                updated_products.append(product)
 
-    return len(new_products)
+        for product in updated_products:
+            try:
+                logger.info(f"Updating existing product: {product.name}")
+                db_product = db_session.exec(
+                    select(Product).where(Product.id == product.id)
+                ).one()
+                for key, value in product.dict().items():
+                    setattr(db_product, key, value)
+                db_session.commit()
+            except Exception as e:
+                logger.error(f"Error updating product {product.id}: {str(e)}")
+                db_session.rollback()
+
+    return len(new_products), len(updated_products)
 
 
 async def parse_mercadona(max_requests_per_second):
@@ -187,12 +210,16 @@ async def parse_mercadona(max_requests_per_second):
 
         # Update last_updated timestamp for processed categories
         with Session(engine) as db_session:
-            for category, new_product_count in zip(categories, results):
+            for category, (new_product_count, updated_product_count) in zip(
+                categories, results
+            ):
                 db_category = db_session.exec(
                     select(Category).where(Category.id == category.id)
                 ).one()
                 db_category.last_updated = datetime.now()
                 logger.info(
-                    f"Category {category.name} updated with {new_product_count} new products"
+                    f"Category {category.name} updated with {new_product_count} new products and {updated_product_count} updated products"
                 )
             db_session.commit()
+
+    logger.info("Mercadona parsing completed")
