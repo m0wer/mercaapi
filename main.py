@@ -133,10 +133,13 @@ def process_nutritional_information():
                 logger.info(f"Processing product '{product.name}' ({product.id})")
                 last_image_url = product.images[-1].zoom_url
                 try:
-                    nutritional_info = nutrition_extractor.process_image_url(
+                    nutritional_info = nutrition_extractor.extract_nutrition_facts(
                         last_image_url
                     )
                     if nutritional_info:
+                        nutritional_info["calories"] = nutritional_info.pop(
+                            "calories_kcal"
+                        )
                         db_nutritional_info = NutritionalInformation(
                             product_id=product.id, **nutritional_info
                         )
