@@ -162,7 +162,7 @@ async def parse_category_products(session, category_id, rate_limiter):
 
         for product in updated_products:
             try:
-                logger.info(f"Updating existing product: {product.name}")
+                logger.info(f"Updating existing product: ({product.id}) {product.name}")
                 db_product = db_session.exec(
                     select(Product).where(Product.id == product.id)
                 ).one()
