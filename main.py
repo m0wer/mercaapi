@@ -4,7 +4,7 @@ import sys
 import time
 
 import click
-from fastapi import FastAPI, Depends, Request
+from fastapi import FastAPI, Depends, Request, HTTPException
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import RedirectResponse
 from sqlmodel import Session, select
@@ -50,15 +50,18 @@ def get_products(
 
 @api_router.get("/products/{product_id}")
 def get_product(product_id: str, session: Session = Depends(get_session)):
-    product = session.exec(
+    result = session.exec(
         select(Product, NutritionalInformation)
         .join(NutritionalInformation)
         .where(Product.id == product_id)
     ).first()
-    if product is None:
-        return {"error": "Product not found"}
 
-    return product
+    if result is None:
+        raise HTTPException(status_code=404, detail="Product not found")
+
+    product, nutritional_info = result
+
+    return {**product.dict(), "nutritional_information": nutritional_info.dict()}
 
 
 @api_router.get("/categories")
