@@ -126,6 +126,8 @@ class GeminiNutritionalFactsExtractor:
         loguru.logger.info(f"Processing image URL: {image_url}")
         file_uri = self.upload_image(image_url)
         nutritional_info = self.extract_info_from_image_uri(file_uri)
+        del nutritional_info["calories_jK"]
+        nutritional_info["calories"] = nutritional_info.pop("calories_kcal")
         return nutritional_info
 
 

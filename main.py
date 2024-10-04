@@ -61,7 +61,10 @@ def get_product(product_id: str, session: Session = Depends(get_session)):
 
     product, nutritional_info = result
 
-    return {**product.dict(), "nutritional_information": nutritional_info.dict()}
+    return {
+        **product.dict(),
+        "nutritional_information": nutritional_info.dict(exclude={"id"}),
+    }
 
 
 @api_router.get("/categories")
