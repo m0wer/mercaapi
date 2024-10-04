@@ -78,7 +78,7 @@ async def redirect_to_docs():
 @click.command()
 @click.option("--max-requests", default=60, help="Maximum requests per minute")
 @click.option("--update-existing", is_flag=True, help="Update existing products")
-def main(max_requests, update_existing):
+def main(max_requests, update_existing=False):
     """
     Main function to run the application.
     """
