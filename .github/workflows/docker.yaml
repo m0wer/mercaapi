@@ -1,13 +1,9 @@
 name: image build
 on:
   workflow_run:
-    workflows:
-      - Run Tests
-      - pre-commit
-    branches:
-      - master
-    types:
-      - completed
+    workflows: [Run Tests]
+    branches: [master]
+    types: [completed]
 
 env:
   REGISTRY: ghcr.io
@@ -15,6 +11,7 @@ env:
 jobs:
   build-and-push-image:
     runs-on: ubuntu-latest
+    if: ${{ github.event.workflow_run.conclusion == 'success' }}
     permissions:
       contents: read
       packages: write
