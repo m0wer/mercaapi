@@ -1,11 +1,13 @@
 import asyncio
+from datetime import datetime
+import time
+
 import aiohttp
 from tenacity import retry, stop_after_attempt, wait_fixed, retry_if_exception_type
 from sqlmodel import Session, select
 from app.models import Category, Product, ProductImage
 from app.database import engine
 from loguru import logger
-import time
 
 BASE_URL = "https://tienda.mercadona.es/api"
 
@@ -76,81 +78,79 @@ async def parse_categories(session, rate_limiter):
                 )
 
 
-async def parse_products(session, category_id, rate_limiter):
+async def parse_products(session, category_id, rate_limiter, existing_product_ids):
     category_data = await fetch(
         session, f"{BASE_URL}/categories/{category_id}", rate_limiter
     )
     if category_data and "categories" in category_data:
         for subcategory in category_data["categories"]:
             for product in subcategory.get("products", []):
-                product_details = await fetch(
-                    session, f"{BASE_URL}/products/{product['id']}", rate_limiter
-                )
-                if product_details:
-                    yield Product(
-                        id=product_details["id"],
-                        ean=product_details.get("ean"),
-                        slug=product_details["slug"],
-                        brand=product_details.get("brand"),
-                        name=product_details["display_name"],
-                        price=float(
-                            product_details["price_instructions"]["unit_price"]
-                        ),
-                        category_id=category_id,
-                        description=product_details.get("details", {}).get(
-                            "description"
-                        ),
-                        origin=product_details.get("origin"),
-                        packaging=product_details.get("packaging"),
-                        unit_name=product_details["price_instructions"].get(
-                            "unit_name"
-                        ),
-                        unit_size=product_details["price_instructions"].get(
-                            "unit_size"
-                        ),
-                        is_variable_weight=product_details.get(
-                            "is_variable_weight", False
-                        ),
-                        is_pack=product_details["price_instructions"].get(
-                            "is_pack", False
-                        ),
-                        images=[
-                            ProductImage(
-                                zoom_url=photo["zoom"],
-                                regular_url=photo["regular"],
-                                thumbnail_url=photo["thumbnail"],
-                                perspective=photo["perspective"],
-                            )
-                            for photo in product_details.get("photos", [])
-                        ],
+                if product["id"] not in existing_product_ids:
+                    product_details = await fetch(
+                        session, f"{BASE_URL}/products/{product['id']}", rate_limiter
                     )
+                    if product_details:
+                        yield Product(
+                            id=product_details["id"],
+                            ean=product_details.get("ean"),
+                            slug=product_details["slug"],
+                            brand=product_details.get("brand"),
+                            name=product_details["display_name"],
+                            price=float(
+                                product_details["price_instructions"]["unit_price"]
+                            ),
+                            category_id=category_id,
+                            description=product_details.get("details", {}).get(
+                                "description"
+                            ),
+                            origin=product_details.get("origin"),
+                            packaging=product_details.get("packaging"),
+                            unit_name=product_details["price_instructions"].get(
+                                "unit_name"
+                            ),
+                            unit_size=product_details["price_instructions"].get(
+                                "unit_size"
+                            ),
+                            is_variable_weight=product_details.get(
+                                "is_variable_weight", False
+                            ),
+                            is_pack=product_details["price_instructions"].get(
+                                "is_pack", False
+                            ),
+                            images=[
+                                ProductImage(
+                                    zoom_url=photo["zoom"],
+                                    regular_url=photo["regular"],
+                                    thumbnail_url=photo["thumbnail"],
+                                    perspective=photo["perspective"],
+                                )
+                                for photo in product_details.get("photos", [])
+                            ],
+                        )
 
 
 async def parse_category_products(session, category_id, rate_limiter):
-    products = [
-        product async for product in parse_products(session, category_id, rate_limiter)
-    ]
     with Session(engine) as db_session:
-        for product in products:
-            existing_product = db_session.exec(
-                select(Product).where(Product.id == product.id)
-            ).first()
-            if existing_product:
-                logger.info(f"Updating existing product: {product.name}")
-                for key, value in product.dict(exclude={"images"}).items():
-                    setattr(existing_product, key, value)
+        existing_product_ids = set(
+            db_session.exec(
+                select(Product.id).where(Product.category_id == category_id)
+            ).all()
+        )
 
-                # Update images
-                db_session.exec(
-                    select(ProductImage).where(
-                        ProductImage.product_id == existing_product.id
-                    )
-                ).delete()
-                existing_product.images = product.images
-            else:
-                logger.info(f"Adding new product: {product.name}")
-                db_session.add(product)
+    new_products = [
+        product
+        async for product in parse_products(
+            session, category_id, rate_limiter, existing_product_ids
+        )
+    ]
+
+    with Session(engine) as db_session:
+        for product in new_products:
+            logger.info(f"Adding new product: {product.name}")
+            db_session.add(product)
         db_session.commit()
+
+    return len(new_products)
 
 
 async def parse_mercadona(max_requests_per_second):
@@ -182,4 +182,17 @@ async def parse_mercadona(max_requests_per_second):
                 parse_category_products(session, category.id, rate_limiter)
             )
             tasks.append(task)
-        await asyncio.gather(*tasks)
+
+        results = await asyncio.gather(*tasks)
+
+        # Update last_updated timestamp for processed categories
+        with Session(engine) as db_session:
+            for category, new_product_count in zip(categories, results):
+                db_category = db_session.exec(
+                    select(Category).where(Category.id == category.id)
+                ).one()
+                db_category.last_updated = datetime.now()
+                logger.info(
+                    f"Category {category.name} updated with {new_product_count} new products"
+                )
+            db_session.commit()
