@@ -117,6 +117,7 @@ def process_nutritional_information():
         ).all()
         for product in products:
             if is_food_category(product.category_id) and product.images:
+                logger.info(f"Processing product '{product.name}' ({product.id})")
                 last_image_url = product.images[-1].zoom_url
                 try:
                     nutritional_info = nutrition_extractor.process_image_url(
@@ -135,6 +136,10 @@ def process_nutritional_information():
                     logger.error(
                         f"Error processing nutritional information for product {product.id}: {str(e)}"
                     )
+            else:
+                logger.debug(
+                    "Skipping product '{product.name}' ({product.id}), not a food product."
+                )
 
     logger.info("Nutritional information processing completed")
 
