@@ -11,7 +11,7 @@ from sqlmodel import Session, select
 from app.database import create_db_and_tables, get_session, engine
 from app.parser import parse_mercadona
 from app.models import Product, Category, NutritionalInformation
-from app.nutrition import GeminiNutritionalFactsExtractor
+from app.vision.nutrition_facts import NutritionFactsExtractor
 from loguru import logger
 
 # Configure loguru
@@ -115,7 +115,7 @@ def process_nutritional_information():
     logger.info("Processing nutritional information for existing products")
     api_key = os.environ.get("GEMINI_API_KEY")
     assert api_key, "Please set the GEMINI_API_KEY environment variable"
-    nutrition_extractor = GeminiNutritionalFactsExtractor(api_key)
+    nutrition_extractor = NutritionFactsExtractor(api_key)
 
     with Session(engine) as session:
         products = session.exec(

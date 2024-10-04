@@ -1,6 +1,6 @@
 import os
 import pytest
-from app.nutrition import GeminiNutritionalFactsExtractor
+from app.vision.nutrition_facts import NutritionFactsExtractor
 
 
 @pytest.fixture
@@ -8,7 +8,7 @@ def extractor():
     api_key = os.getenv("GEMINI_API_KEY")
     if not api_key:
         pytest.skip("GEMINI_API_KEY environment variable not set")
-    return GeminiNutritionalFactsExtractor(api_key)
+    return NutritionFactsExtractor(api_key)
 
 
 # Define all test cases as a list of tuples (image_url, expected_output)
@@ -126,7 +126,7 @@ def test_nutritional_facts_accuracy_gt_80(extractor):
     for idx, (image_url, expected_output) in enumerate(test_cases, start=1):
         try:
             # Execute the method under test
-            result = extractor.process_image_url(image_url)
+            result = extractor.extract_nutrition_facts(image_url)
 
             # Compare the result with the expected output
             assert (

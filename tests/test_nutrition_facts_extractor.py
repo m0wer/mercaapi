@@ -1,13 +1,13 @@
 import json
 import pytest
 from unittest.mock import patch, Mock
-from app.nutrition import GeminiNutritionalFactsExtractor
+from app.vision.nutrition_facts import NutritionFactsExtractor
 
 
 @pytest.fixture
 def extractor():
     api_key = "test_api_key"
-    return GeminiNutritionalFactsExtractor(api_key)
+    return NutritionFactsExtractor(api_key)
 
 
 @pytest.mark.parametrize(
@@ -66,8 +66,8 @@ def extractor():
         ),
     ],
 )
-@patch("app.nutrition.requests.post")
-@patch("app.nutrition.requests.get")
+@patch("app.vision.gemini.requests.post")
+@patch("app.vision.gemini.requests.get")
 def test_process_image_url(mock_get, mock_post, extractor, image_url, expected_output):
     # Mock the GET request to download the image
     mock_get.return_value = Mock(
@@ -77,7 +77,7 @@ def test_process_image_url(mock_get, mock_post, extractor, image_url, expected_o
     # Mock responses for the POST requests
     # 1. Initiate upload
     initiate_upload_response = Mock(
-        status_code=200, headers={"X-Goog-Upload-URL": "https://upload.url"}
+        status_code=200, headers={"X-Goog-Upload-URL": "https://upload.test"}
     )
 
     # 2. Upload image data
@@ -109,7 +109,7 @@ def test_process_image_url(mock_get, mock_post, extractor, image_url, expected_o
     ]
 
     # Execute the method under test
-    result = extractor.process_image_url(image_url)
+    result = extractor.extract_nutrition_facts(image_url)
 
     # Assert the result matches the expected output
     assert result == expected_output
