@@ -1,8 +1,9 @@
 import asyncio
 import time
+from datetime import datetime
 
 from app.database import engine
-from app.models import Category, Product, ProductImage
+from app.models import Category, Product, ProductImage, PriceHistory
 from loguru import logger
 from sqlalchemy.exc import IntegrityError
 from sqlmodel import Session, select
@@ -146,8 +147,7 @@ async def parse_category_products(
         session, category_id, rate_limiter, existing_product_ids
     ):
         if product.id in existing_product_ids:
-            if not skip_existing_products:
-                updated_products.append(product)
+            updated_products.append(product)
         else:
             new_products.append(product)
 
@@ -156,26 +156,43 @@ async def parse_category_products(
             try:
                 logger.info(f"Adding new product: {product.name}")
                 db_session.add(product)
+                db_session.add(
+                    PriceHistory(
+                        product_id=product.id,
+                        price=product.price,
+                        timestamp=datetime.now(),
+                    )
+                )
                 db_session.commit()
             except IntegrityError:
                 logger.warning(f"Product {product.id} already exists, skipping")
                 db_session.rollback()
 
-        if not skip_existing_products:
-            for product in updated_products:
-                try:
+        for product in updated_products:
+            try:
+                logger.info(f"Updating existing product: ({product.id}) {product.name}")
+                db_product = db_session.exec(
+                    select(Product).where(Product.id == product.id)
+                ).one()
+
+                if db_product.price != product.price:
                     logger.info(
-                        f"Updating existing product: ({product.id}) {product.name}"
+                        f"Price change for product {product.id}: {db_product.price} -> {product.price}"
                     )
-                    db_product = db_session.exec(
-                        select(Product).where(Product.id == product.id)
-                    ).one()
-                    for key, value in product.dict().items():
-                        setattr(db_product, key, value)
-                    db_session.commit()
-                except Exception as e:
-                    logger.error(f"Error updating product {product.id}: {str(e)}")
-                    db_session.rollback()
+                    db_session.add(
+                        PriceHistory(
+                            product_id=product.id,
+                            price=product.price,
+                            timestamp=datetime.now(),
+                        )
+                    )
+
+                for key, value in product.dict().items():
+                    setattr(db_product, key, value)
+                db_session.commit()
+            except Exception as e:
+                logger.error(f"Error updating product {product.id}: {str(e)}")
+                db_session.rollback()
 
     return len(new_products), len(updated_products)
 
@@ -207,23 +224,21 @@ async def parse_mercadona(max_requests_per_second, skip_existing_products=False)
         for category in categories:
             task = asyncio.create_task(
                 parse_category_products(
-                    session, category.id, rate_limiter, skip_existing_products
+                    session, category.id, rate_limiter, skip_existing_products=False
                 )
             )
             tasks.append(task)
 
-        results = await asyncio.gather(*tasks)
+        try:
+            results = await asyncio.gather(*tasks)
 
-        for category, (new_product_count, updated_product_count) in zip(
-            categories, results
-        ):
-            if skip_existing_products:
-                logger.info(
-                    f"Category {category.name} updated with {new_product_count} new products (existing products skipped)"
-                )
-            else:
+            for category, (new_product_count, updated_product_count) in zip(
+                categories, results
+            ):
                 logger.info(
                     f"Category {category.name} updated with {new_product_count} new products and {updated_product_count} updated products"
                 )
+        except Exception as e:
+            logger.error(f"An unexpected error occurred: {str(e)}")
 
     logger.info("Mercadona parsing completed")
