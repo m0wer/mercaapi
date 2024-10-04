@@ -12,6 +12,7 @@ from app.database import create_db_and_tables, get_session, engine
 from app.parser import parse_mercadona
 from app.models import Product, Category, NutritionalInformation
 from app.vision.nutrition_facts import NutritionFactsExtractor
+from app.models import ProductImage
 from loguru import logger
 
 # Configure loguru
@@ -51,19 +52,25 @@ def get_products(
 @api_router.get("/products/{product_id}")
 def get_product(product_id: str, session: Session = Depends(get_session)):
     result = session.exec(
-        select(Product, NutritionalInformation)
-        .join(NutritionalInformation)
+        select(Product)
+        .join(NutritionalInformation, isouter=True)
+        .join(ProductImage, isouter=True)
         .where(Product.id == product_id)
     ).first()
 
     if result is None:
         raise HTTPException(status_code=404, detail="Product not found")
 
-    product, nutritional_info = result
+    product = result
 
     return {
         **product.dict(),
-        "nutritional_information": nutritional_info.dict(exclude={"id"}),
+        "nutritional_information": product.nutritional_information.dict(exclude={"id"})
+        if product.nutritional_information is not None
+        else None,
+        "images": [
+            image.dict(exclude={"id", "product_id"}) for image in product.images
+        ],
     }
 
 
