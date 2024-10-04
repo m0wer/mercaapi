@@ -1,8 +1,13 @@
 name: image build
 on:
-  push:
+  workflow_run:
+    workflows:
+      - Run Tests
+      - pre-commit
     branches:
       - master
+    types:
+      - completed
 
 env:
   REGISTRY: ghcr.io
