@@ -206,7 +206,9 @@ async def parse_mercadona(max_requests_per_second, skip_existing_products=False)
         tasks = []
         for category in categories:
             task = asyncio.create_task(
-                parse_category_products(session, category.id, rate_limiter)
+                parse_category_products(
+                    session, category.id, rate_limiter, skip_existing_products
+                )
             )
             tasks.append(task)
 

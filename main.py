@@ -77,9 +77,15 @@ async def redirect_to_docs():
 
 @click.command()
 @click.option("--max-requests", default=60, help="Maximum requests per minute")
-def main(max_requests):
+@click.option("--update-existing", is_flag=True, help="Update existing products")
+def main(max_requests, update_existing):
+    """
+    Main function to run the application.
+    """
     logger.info("Starting the Mercadona parser")
-    asyncio.run(parse_mercadona(max_requests))
+    asyncio.run(
+        parse_mercadona(max_requests, skip_existing_products=not update_existing)
+    )
     logger.info("Parsing completed")
 
 
