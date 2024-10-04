@@ -1,5 +1,4 @@
 import asyncio
-from datetime import datetime
 import time
 
 from app.database import engine
@@ -213,23 +212,16 @@ async def parse_mercadona(max_requests_per_second, skip_existing_products=False)
 
         results = await asyncio.gather(*tasks)
 
-        # Update last_updated timestamp for processed categories
-        with Session(engine) as db_session:
-            for category, (new_product_count, updated_product_count) in zip(
-                categories, results
-            ):
-                db_category = db_session.exec(
-                    select(Category).where(Category.id == category.id)
-                ).one()
-                db_category.last_updated = datetime.now()
-                if skip_existing_products:
-                    logger.info(
-                        f"Category {category.name} updated with {new_product_count} new products (existing products skipped)"
-                    )
-                else:
-                    logger.info(
-                        f"Category {category.name} updated with {new_product_count} new products and {updated_product_count} updated products"
-                    )
-            db_session.commit()
+        for category, (new_product_count, updated_product_count) in zip(
+            categories, results
+        ):
+            if skip_existing_products:
+                logger.info(
+                    f"Category {category.name} updated with {new_product_count} new products (existing products skipped)"
+                )
+            else:
+                logger.info(
+                    f"Category {category.name} updated with {new_product_count} new products and {updated_product_count} updated products"
+                )
 
     logger.info("Mercadona parsing completed")
