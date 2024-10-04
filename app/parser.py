@@ -130,7 +130,9 @@ async def parse_products(session, category_id, rate_limiter, existing_product_id
                     )
 
 
-async def parse_category_products(session, category_id, rate_limiter):
+async def parse_category_products(
+    session, category_id, rate_limiter, skip_existing_products=False
+):
     with Session(engine) as db_session:
         existing_product_ids = set(
             db_session.exec(
@@ -145,7 +147,8 @@ async def parse_category_products(session, category_id, rate_limiter):
         session, category_id, rate_limiter, existing_product_ids
     ):
         if product.id in existing_product_ids:
-            updated_products.append(product)
+            if not skip_existing_products:
+                updated_products.append(product)
         else:
             new_products.append(product)
 
@@ -156,27 +159,29 @@ async def parse_category_products(session, category_id, rate_limiter):
                 db_session.add(product)
                 db_session.commit()
             except IntegrityError:
-                logger.warning(f"Product {product.id} already exists, updating instead")
+                logger.warning(f"Product {product.id} already exists, skipping")
                 db_session.rollback()
-                updated_products.append(product)
 
-        for product in updated_products:
-            try:
-                logger.info(f"Updating existing product: ({product.id}) {product.name}")
-                db_product = db_session.exec(
-                    select(Product).where(Product.id == product.id)
-                ).one()
-                for key, value in product.dict().items():
-                    setattr(db_product, key, value)
-                db_session.commit()
-            except Exception as e:
-                logger.error(f"Error updating product {product.id}: {str(e)}")
-                db_session.rollback()
+        if not skip_existing_products:
+            for product in updated_products:
+                try:
+                    logger.info(
+                        f"Updating existing product: ({product.id}) {product.name}"
+                    )
+                    db_product = db_session.exec(
+                        select(Product).where(Product.id == product.id)
+                    ).one()
+                    for key, value in product.dict().items():
+                        setattr(db_product, key, value)
+                    db_session.commit()
+                except Exception as e:
+                    logger.error(f"Error updating product {product.id}: {str(e)}")
+                    db_session.rollback()
 
     return len(new_products), len(updated_products)
 
 
-async def parse_mercadona(max_requests_per_second):
+async def parse_mercadona(max_requests_per_second, skip_existing_products=False):
     logger.info("Starting Mercadona parsing")
     rate_limiter = RateLimiter(max_requests_per_second)
     async with aiohttp.ClientSession() as session:
@@ -217,9 +222,14 @@ async def parse_mercadona(max_requests_per_second):
                     select(Category).where(Category.id == category.id)
                 ).one()
                 db_category.last_updated = datetime.now()
-                logger.info(
-                    f"Category {category.name} updated with {new_product_count} new products and {updated_product_count} updated products"
-                )
+                if skip_existing_products:
+                    logger.info(
+                        f"Category {category.name} updated with {new_product_count} new products (existing products skipped)"
+                    )
+                else:
+                    logger.info(
+                        f"Category {category.name} updated with {new_product_count} new products and {updated_product_count} updated products"
+                    )
             db_session.commit()
 
     logger.info("Mercadona parsing completed")
