@@ -27,6 +27,9 @@ class Product(SQLModel, table=True):
 
     images: List["ProductImage"] = Relationship(back_populates="product")
     price_history: List["PriceHistory"] = Relationship(back_populates="product")
+    nutritional_information: Optional["NutritionalInformation"] = Relationship(
+        back_populates="product"
+    )
 
 
 class ProductImage(SQLModel, table=True):
@@ -47,3 +50,21 @@ class PriceHistory(SQLModel, table=True):
     timestamp: datetime
 
     product: Product = Relationship(back_populates="price_history")
+
+
+class NutritionalInformation(SQLModel, table=True):
+    id: int = Field(default=None, primary_key=True)
+    product_id: str = Field(foreign_key="product.id")
+    calories: Optional[float]
+    total_fat: Optional[float]
+    saturated_fat: Optional[float]
+    polyunsaturated_fat: Optional[float]
+    monounsaturated_fat: Optional[float]
+    trans_fat: Optional[float]
+    total_carbohydrate: Optional[float]
+    dietary_fiber: Optional[float]
+    total_sugars: Optional[float]
+    protein: Optional[float]
+    salt: Optional[float]
+
+    product: Product = Relationship(back_populates="nutritional_information")
