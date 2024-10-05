@@ -4,7 +4,7 @@ import sys
 import time
 
 import click
-from fastapi import FastAPI, Depends, Request, HTTPException
+from fastapi import FastAPI, Depends, Request, HTTPException, UploadFile, File
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import RedirectResponse
 from sqlmodel import Session, select
@@ -14,6 +14,7 @@ from app.models import Product, Category, NutritionalInformation
 from app.vision.nutrition_facts import NutritionFactsExtractor
 from app.models import ProductImage
 from loguru import logger
+from app.vision.ticket import TicketImageInformationExtractor
 
 # Configure loguru
 logger.remove()
@@ -171,6 +172,30 @@ def process_nutritional_information():
                 )
 
     logger.info("Nutritional information processing completed")
+
+
+@api_router.post("/ticket")
+async def process_ticket(file: UploadFile = File(...)):
+    """
+    Handle POST requests to /ticket endpoint.
+    Accepts an image or PDF file, extracts ticket information, and returns it.
+    """
+    api_key = os.environ.get("GEMINI_API_KEY")
+    if not api_key:
+        raise HTTPException(status_code=500, detail="API key not configured")
+
+    extractor = TicketImageInformationExtractor(api_key=api_key)
+    file_data = await file.read()
+    mime_type = file.content_type
+
+    try:
+        extract_info = extractor.extract_ticket_info(file_data, mime_type)
+    except Exception as e:
+        logger.error(f"Error extracting ticket information: {e}")
+        raise HTTPException(
+            status_code=500, detail="Failed to extract ticket information"
+        )
+    return extract_info
 
 
 if __name__ == "__main__":

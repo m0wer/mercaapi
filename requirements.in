@@ -8,3 +8,4 @@ sqlmodel
 tenacity
 uvicorn
 pytest
+python-multipart
