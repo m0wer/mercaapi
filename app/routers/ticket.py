@@ -1,11 +1,11 @@
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Query
 from sqlmodel import Session
 from app.database import get_session
-from app.models import Product, ProductMatch
+from app.models import Product
 from app.vision.ticket import TicketImageInformationExtractor
-from app.routers.products import get_all_products
+from app.shared.cache import get_all_products
+from app.shared.product_matcher import find_closest_products
 from pydantic import BaseModel
-from fuzzywuzzy import fuzz
 import os
 from loguru import logger
 
@@ -113,20 +113,12 @@ async def calculate_ticket_stats(
     all_products = get_all_products(session)
 
     for item in ticket_info.items:
-        closest_products = [
-            ProductMatch(
-                score=fuzz.partial_ratio(item.name.lower(), product.name.lower()),
-                product=product,
-            )
-            for product in all_products
-        ]
-        closest_products.sort(key=lambda x: x.score, reverse=True)
-        closest_products = closest_products[:5]
+        closest_products = find_closest_products(
+            all_products, item.name, item.unit_price
+        )
 
-        if not closest_products or closest_products[0].score < 80:
-            logger.warning(
-                f"Low match score for product '{item.name}'. Best match: {closest_products[0].product.name if closest_products else 'None'} with score {closest_products[0].score if closest_products else 'None'}"
-            )
+        if not closest_products:
+            logger.warning(f"No match found for product '{item.name}'.")
             non_food_products.append(
                 ProductInfo(
                     product=Product(name=item.name, price=item.unit_price),
@@ -136,8 +128,8 @@ async def calculate_ticket_stats(
             continue
 
         product = closest_products[0].product
-        logger.debug(
-            f"Chosen product for '{item.name}': {product} with score {closest_products[0].score}"
+        logger.info(
+            f"Best match for '{item.name}': {product.name} (Score: {closest_products[0].score:.2f})"
         )
 
         is_food = (
@@ -146,7 +138,7 @@ async def calculate_ticket_stats(
         )
         product_info = ProductInfo(product=product, is_food=is_food)
 
-        if is_food and product.nutritional_information:  # Add null check here
+        if is_food and product.nutritional_information:
             unit_size = product.unit_size if product.unit_size is not None else 1
 
             calories = calculate_total(
@@ -183,7 +175,7 @@ async def calculate_ticket_stats(
             if calories is not None:
                 total_calories += calories
                 total_food_price += item.total_price
-                product_info.total_calories = int(calories)  # Convert to int
+                product_info.total_calories = int(calories)
                 product_info.total_weight = unit_size * item.quantity
                 product_info.total_protein = proteins
                 product_info.total_carbs = carbs

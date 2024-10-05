@@ -97,6 +97,8 @@ typing-extensions==4.12.2
     #   pydantic
     #   pydantic-core
     #   sqlalchemy
+unidecode==1.3.8
+    # via -r requirements.in
 urllib3==2.2.3
     # via requests
 uvicorn==0.31.0

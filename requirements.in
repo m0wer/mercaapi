@@ -12,3 +12,4 @@ pydantic
 pytest
 python-Levenshtein
 python-multipart
+unidecode

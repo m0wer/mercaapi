@@ -2,11 +2,13 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlmodel import Session, select
 from app.database import get_session
 from app.models import Product, NutritionalInformation, ProductImage, ProductMatch
-from app.shared.cache import cache
-from fuzzywuzzy import fuzz
+from app.shared.cache import get_all_products
+from app.shared.product_matcher import find_closest_products
 from typing import List
+import logging
 
 router = APIRouter(prefix="/products", tags=["products"])
+logger = logging.getLogger(__name__)
 
 
 @router.get("/")
@@ -15,6 +17,35 @@ def get_products(
 ):
     products = session.exec(select(Product).offset(skip).limit(limit)).all()
     return products
+
+
+@router.get("/closest", response_model=List[ProductMatch])
+def get_closest_product(
+    name: str | None = None,
+    unit_price: float | None = None,
+    max_results: int = Query(default=10, le=100),
+    threshold: int = Query(default=60, ge=0, le=100),
+    session: Session = Depends(get_session),
+):
+    if name is None and unit_price is None:
+        raise HTTPException(
+            status_code=400,
+            detail="At least one of name or unit_price must be provided",
+        )
+
+    products = get_all_products(session)
+
+    matches = find_closest_products(
+        products=products, item_name=name, item_price=unit_price, threshold=threshold
+    )
+
+    logger.info(
+        f"Found {len(matches)} matches for query: name='{name}', price={unit_price}"
+    )
+    for match in matches[:5]:
+        logger.debug(f"  Match: {match.product.name} (Score: {match.score:.2f})")
+
+    return matches[:max_results]
 
 
 @router.get("/{product_id}")
@@ -42,48 +73,3 @@ def get_product(product_id: str, session: Session = Depends(get_session)):
             image.model_dump(exclude={"id", "product_id"}) for image in product.images
         ],
     }
-
-
-@router.get("/closest", response_model=List[ProductMatch])
-def get_closest_product(
-    name: str | None = None,
-    unit_price: float | None = None,
-    max_results: int = Query(default=10, le=100),
-    session: Session = Depends(get_session),
-):
-    if name is None and unit_price is None:
-        raise HTTPException(
-            status_code=400,
-            detail="At least one of name or unit_price must be provided",
-        )
-
-    products = get_all_products(session)
-    matches = []
-
-    for product in products:
-        score: float = 0.0
-        if name:
-            name_score = fuzz.token_set_ratio(name.lower(), product.name.lower())
-            score += name_score * 0.7  # Weight name match more heavily
-
-        if unit_price is not None:
-            price_diff = abs(product.price - unit_price)
-            price_score = max(0, 100 - (price_diff / unit_price) * 100)
-            score += price_score * 0.3
-
-        if score > 0:
-            matches.append(ProductMatch(score=score, product=product))
-
-    # Sort matches by score in descending order and limit to max_results
-    matches.sort(key=lambda x: x.score, reverse=True)
-    return matches[:max_results]
-
-
-def get_all_products(session: Session):
-    cached_products = cache.get("all_products")
-    if cached_products:
-        return cached_products
-
-    products = session.exec(select(Product)).all()
-    cache.set("all_products", products)
-    return products
