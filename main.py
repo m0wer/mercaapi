@@ -117,6 +117,14 @@ def is_food_category(category_id: str) -> bool:
     return True
 
 
+def clean_numeric(value):
+    if isinstance(value, str):
+        # Remove anything that's not a digit or a dot
+        cleaned = "".join(char for char in value if char.isdigit() or char == ".")
+        return float(cleaned) if cleaned else None
+    return value
+
+
 @cli.command()
 def process_nutritional_information():
     logger.info("Processing nutritional information for existing products")
@@ -140,8 +148,13 @@ def process_nutritional_information():
                         nutritional_info["calories"] = nutritional_info.pop(
                             "calories_kcal"
                         )
+                        # Clean numeric values
+                        cleaned_info = {
+                            key: clean_numeric(value)
+                            for key, value in nutritional_info.items()
+                        }
                         db_nutritional_info = NutritionalInformation(
-                            product_id=product.id, **nutritional_info
+                            product_id=product.id, **cleaned_info
                         )
                         session.add(db_nutritional_info)
                         session.commit()
@@ -154,7 +167,7 @@ def process_nutritional_information():
                     )
             else:
                 logger.debug(
-                    "Skipping product '{product.name}' ({product.id}), not a food product."
+                    f"Skipping product '{product.name}' ({product.id}), not a food product."
                 )
 
     logger.info("Nutritional information processing completed")
