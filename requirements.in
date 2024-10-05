@@ -2,10 +2,13 @@ aiohttp
 alembic
 click
 fastapi
+fuzzywuzzy
 loguru
 requests
 sqlmodel
 tenacity
 uvicorn
+pydantic
 pytest
+python-Levenshtein
 python-multipart

@@ -1,14 +1,15 @@
-from sqlmodel import SQLModel, create_engine, Session
+from sqlmodel import create_engine, Session
+from functools import lru_cache
 
 DATABASE_URL = "sqlite:///./mercadona.db"
 
-engine = create_engine(DATABASE_URL)
+
+@lru_cache()
+def get_engine(db_url: str = DATABASE_URL):
+    return create_engine(db_url, connect_args={"check_same_thread": False})
 
 
-def create_db_and_tables():
-    SQLModel.metadata.create_all(engine)
-
-
-def get_session():
+def get_session(db_url: str = DATABASE_URL):
+    engine = get_engine(db_url)
     with Session(engine) as session:
         yield session

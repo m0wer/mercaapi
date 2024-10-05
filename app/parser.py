@@ -2,14 +2,12 @@ import asyncio
 import time
 from datetime import datetime
 
-from app.database import engine
 from app.models import Category, Product, ProductImage, PriceHistory
 from loguru import logger
 from sqlalchemy.exc import IntegrityError
 from sqlmodel import Session, select
 from tenacity import retry, stop_after_attempt, wait_fixed, retry_if_exception_type
 import aiohttp
-
 
 BASE_URL = "https://tienda.mercadona.es/api"
 
@@ -131,7 +129,7 @@ async def parse_products(session, category_id, rate_limiter, existing_product_id
 
 
 async def parse_category_products(
-    session, category_id, rate_limiter, skip_existing_products=True
+    engine, session, category_id, rate_limiter, skip_existing_products=True
 ):
     with Session(engine) as db_session:
         existing_product_ids = set(
@@ -197,7 +195,7 @@ async def parse_category_products(
     return len(new_products), len(updated_products)
 
 
-async def parse_mercadona(max_requests_per_second, skip_existing_products=True):
+async def parse_mercadona(engine, max_requests_per_second, skip_existing_products=True):
     logger.info("Starting Mercadona parsing")
     rate_limiter = RateLimiter(max_requests_per_second)
     async with aiohttp.ClientSession() as session:
@@ -224,6 +222,7 @@ async def parse_mercadona(max_requests_per_second, skip_existing_products=True):
         for category in categories:
             task = asyncio.create_task(
                 parse_category_products(
+                    engine,
                     session,
                     category.id,
                     rate_limiter,
