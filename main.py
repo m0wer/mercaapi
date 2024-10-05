@@ -107,7 +107,7 @@ def get_closest_product(
     for product in products:
         score: float = 0.0
         if name:
-            name_score = fuzz.ratio(name.lower(), product.name.lower())
+            name_score = fuzz.partial_ratio(name.lower(), product.name.lower())
             score += name_score * 0.7  # Weight name match more heavily
 
         if unit_price is not None:
