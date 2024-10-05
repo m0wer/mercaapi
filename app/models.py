@@ -1,6 +1,7 @@
 from sqlmodel import SQLModel, Field, Relationship
 from typing import Optional, List
 from datetime import datetime
+from pydantic import BaseModel
 
 
 class Category(SQLModel, table=True):
@@ -68,3 +69,8 @@ class NutritionalInformation(SQLModel, table=True):
     salt: Optional[float]
 
     product: Product = Relationship(back_populates="nutritional_information")
+
+
+class ProductMatch(BaseModel):
+    score: float
+    product: Product
