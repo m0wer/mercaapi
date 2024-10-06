@@ -1,29 +1,44 @@
+import os
+
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Query
 from sqlmodel import Session
+from pydantic import BaseModel, model_validator
+from loguru import logger
+
 from app.database import get_session
 from app.models import Product
 from app.ai.ticket import TicketImageInformationExtractor
 from app.shared.cache import get_all_products
 from app.shared.product_matcher import find_closest_products
-from pydantic import BaseModel
-import os
-from loguru import logger
 
 router = APIRouter(prefix="/ticket", tags=["ticket"])
 
 
 class TicketItem(BaseModel):
     name: str
-    quantity: int
-    total_price: float
-    unit_price: float
+    quantity: int = 1
+    total_price: float | None = None
+    unit_price: float | None = None
+
+    @model_validator(mode="before")
+    @classmethod
+    def guess_unit_price(cls, data: dict):
+        if "unit_price" not in data or data["unit_price"] is None:
+            if (
+                "total_price" in data
+                and data["total_price"] is not None
+                and data["total_price"] != 0
+                and data["quantity"] != 0
+            ):
+                data["unit_price"] = data["total_price"] / data["quantity"]
+        return data
 
 
 class TicketInfo(BaseModel):
-    ticket_number: int
-    date: str
-    time: str
-    total_price: float
+    ticket_number: int | None = None
+    date: str | None = None
+    time: str | None = None
+    total_price: float | None = None
     items: list[TicketItem]
 
 
@@ -174,7 +189,7 @@ async def calculate_ticket_stats(
 
             if calories is not None:
                 total_calories += calories
-                total_food_price += item.total_price
+                total_food_price += item.total_price or 0.0
                 product_info.total_calories = int(calories)
                 product_info.total_weight = unit_size * item.quantity
                 product_info.total_protein = proteins
@@ -198,7 +213,9 @@ async def calculate_ticket_stats(
         else:
             non_food_products.append(product_info)
 
-    total_price = ticket_info.total_price
+    total_price: float = ticket_info.total_price or sum(
+        item.total_price for item in ticket_info.items if item.total_price is not None
+    )
     food_percentage = (total_food_price / total_price) * 100 if total_price > 0 else 0
 
     if total_calories == 0:
