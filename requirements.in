@@ -1,14 +1,13 @@
 aiohttp
 alembic
 click
-fastapi
+fastapi[standard]
 fuzzywuzzy
 google-generativeai
 loguru
 requests
 sqlmodel
 tenacity
-uvicorn
 pydantic
 pytest
 python-Levenshtein

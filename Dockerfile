@@ -1,4 +1,4 @@
-FROM tiangolo/uvicorn-gunicorn-fastapi:python3.11
+FROM python:3.11-slim
 
 WORKDIR /app
 
@@ -11,3 +11,5 @@ COPY ./cli.py /app/cli.py
 COPY ./alembic.ini /app/alembic.ini
 COPY ./migrations/ /app/migrations
 COPY ./static/ /app/static
+
+CMD ["fastapi", "run", "main.py", "--port", "80", "--host", "0.0.0.0", "--workers", "4", "--proxy-headers"]

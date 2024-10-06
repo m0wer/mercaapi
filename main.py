@@ -45,9 +45,3 @@ app.mount("/", StaticFiles(directory="static", html=True), name="static")
 @app.get("/api")
 async def redirect_to_docs():
     return RedirectResponse(url="/api/docs")
-
-
-if __name__ == "__main__":
-    import uvicorn
-
-    uvicorn.run(app, host="0.0.0.0", port=8000)

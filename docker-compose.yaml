@@ -6,6 +6,6 @@ services:
       - "8000:80"
     volumes:
       - ./app:/app/app
+      - ./mercadona.db:/app/mercadona.db
       - ./main.py:/app/main.py
       - ./alembic.ini:/app/alembic.ini
-    command: ["python", "main.py", "--max-requests", "60"]
