@@ -21,7 +21,6 @@ class NutritionEstimator:
         prompt = f"{nutrition_prompt}\n\nProduct details:\nName: {product.name}\nDescription: {product.description}\nCategory: {product.category.name}"
         try:
             response = self.model.generate_content(prompt)
-            breakpoint()
             json_str = response.candidates[0].content.parts[0].text
             # Extract the JSON object from the response text
             logger.debug(f"Response text: {json_str}")
