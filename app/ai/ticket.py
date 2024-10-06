@@ -1,7 +1,7 @@
 from loguru import logger
 
-from app.vision.prompts import ticket_info
-from app.vision.gemini import GeminiImageInformationExtractor
+from app.ai.prompts import ticket_info
+from app.ai.gemini import GeminiImageInformationExtractor
 
 
 class TicketImageInformationExtractor(GeminiImageInformationExtractor):

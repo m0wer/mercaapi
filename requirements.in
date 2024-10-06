@@ -3,6 +3,7 @@ alembic
 click
 fastapi
 fuzzywuzzy
+google-generativeai
 loguru
 requests
 sqlmodel

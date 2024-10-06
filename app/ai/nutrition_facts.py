@@ -2,8 +2,8 @@ import requests
 from loguru import logger
 import os
 
-from app.vision.prompts import nutritional_info
-from app.vision.gemini import GeminiImageInformationExtractor
+from app.ai.prompts import nutritional_info
+from app.ai.gemini import GeminiImageInformationExtractor
 
 
 class NutritionFactsExtractor(GeminiImageInformationExtractor):

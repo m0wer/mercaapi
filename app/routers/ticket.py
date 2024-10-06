@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Query
 from sqlmodel import Session
 from app.database import get_session
 from app.models import Product
-from app.vision.ticket import TicketImageInformationExtractor
+from app.ai.ticket import TicketImageInformationExtractor
 from app.shared.cache import get_all_products
 from app.shared.product_matcher import find_closest_products
 from pydantic import BaseModel

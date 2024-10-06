@@ -1,6 +1,6 @@
 import os
 import pytest
-from app.vision.nutrition_facts import NutritionFactsExtractor
+from app.ai.nutrition_facts import NutritionFactsExtractor
 
 
 @pytest.fixture

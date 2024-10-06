@@ -1,7 +1,7 @@
 import json
 import pytest
 from unittest.mock import patch, Mock
-from app.vision.nutrition_facts import NutritionFactsExtractor
+from app.ai.nutrition_facts import NutritionFactsExtractor
 
 
 @pytest.fixture
@@ -66,8 +66,8 @@ def extractor():
         ),
     ],
 )
-@patch("app.vision.gemini.requests.post")
-@patch("app.vision.gemini.requests.get")
+@patch("app.ai.gemini.requests.post")
+@patch("app.ai.gemini.requests.get")
 def test_process_image_url(mock_get, mock_post, extractor, image_url, expected_output):
     # Mock the GET request to download the image
     mock_get.return_value = Mock(
