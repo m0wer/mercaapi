@@ -38,6 +38,8 @@ def find_closest_products(
         f"Found {len(matches)} matches for item '{item_name}' with price {item_price}"
     )
     for match in matches[:5]:
-        logger.debug(f"  Match: {match.product.name} (Score: {match.score:.2f})")
+        logger.debug(
+            f"  Match: {match.product.name}, {match.product.price:.2f} € (Score: {match.score:.2f})"
+        )
 
     return matches

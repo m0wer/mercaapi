@@ -43,7 +43,9 @@ def get_closest_product(
         f"Found {len(matches)} matches for query: name='{name}', price={unit_price}"
     )
     for match in matches[:5]:
-        logger.debug(f"  Match: {match.product.name} (Score: {match.score:.2f})")
+        logger.debug(
+            f"  Match: {match.product.name}, {match.product.price:.2f} € (Score: {match.score:.2f})"
+        )
 
     return matches[:max_results]
 
