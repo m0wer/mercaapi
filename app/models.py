@@ -1,34 +1,39 @@
-from sqlmodel import SQLModel, Field, Relationship
-from typing import Optional, List
 from datetime import datetime
+from typing import Union
+
+
+from sqlmodel import SQLModel, Field, Relationship
 from pydantic import BaseModel
 
 
 class Category(SQLModel, table=True):
     id: int = Field(primary_key=True)
     name: str
-    parent_id: Optional[int] = Field(default=None, foreign_key="category.id")
+    parent_id: int | None = Field(default=None, foreign_key="category.id")
+
+    products: list["Product"] = Relationship(back_populates="category")
 
 
 class Product(SQLModel, table=True):
     id: str = Field(primary_key=True)
     ean: str
     slug: str
-    brand: Optional[str]
+    brand: str | None
     name: str
     price: float
     category_id: int = Field(foreign_key="category.id")
-    description: Optional[str]
-    origin: Optional[str]
-    packaging: Optional[str]
-    unit_name: Optional[str]
-    unit_size: Optional[float]
+    description: str | None
+    origin: str | None
+    packaging: str | None
+    unit_name: str | None
+    unit_size: float | None
     is_variable_weight: bool = False
     is_pack: bool = False
 
-    images: List["ProductImage"] = Relationship(back_populates="product")
-    price_history: List["PriceHistory"] = Relationship(back_populates="product")
-    nutritional_information: Optional["NutritionalInformation"] = Relationship(
+    category: Category = Relationship(back_populates="products")
+    images: list["ProductImage"] = Relationship(back_populates="product")
+    price_history: list["PriceHistory"] = Relationship(back_populates="product")
+    nutritional_information: Union["NutritionalInformation", None] = Relationship(
         back_populates="product"
     )
 
@@ -56,17 +61,17 @@ class PriceHistory(SQLModel, table=True):
 class NutritionalInformation(SQLModel, table=True):
     id: int = Field(default=None, primary_key=True)
     product_id: str = Field(foreign_key="product.id")
-    calories: Optional[float]
-    total_fat: Optional[float]
-    saturated_fat: Optional[float]
-    polyunsaturated_fat: Optional[float]
-    monounsaturated_fat: Optional[float]
-    trans_fat: Optional[float]
-    total_carbohydrate: Optional[float]
-    dietary_fiber: Optional[float]
-    total_sugars: Optional[float]
-    protein: Optional[float]
-    salt: Optional[float]
+    calories: float | None
+    total_fat: float | None
+    saturated_fat: float | None
+    polyunsaturated_fat: float | None
+    monounsaturated_fat: float | None
+    trans_fat: float | None
+    total_carbohydrate: float | None
+    dietary_fiber: float | None
+    total_sugars: float | None
+    protein: float | None
+    salt: float | None
 
     product: Product = Relationship(back_populates="nutritional_information")
 

@@ -8,12 +8,13 @@ from fastapi import FastAPI, Request
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import RedirectResponse
 from sqlmodel import Session, select
-from app.database import get_engine
-from app.parser import parse_mercadona
-from app.models import Product, NutritionalInformation
-from app.vision.nutrition_facts import NutritionFactsExtractor
+from sqlalchemy.orm import joinedload
 from loguru import logger
 
+from app.database import get_engine
+from app.parser import parse_mercadona
+from app.models import Category, Product, NutritionalInformation
+from app.vision.nutrition_facts import NutritionFactsExtractor
 from app.routers import products, categories, ticket
 
 # Configure loguru
@@ -75,9 +76,18 @@ def parse(max_requests, update_existing=False):
     logger.info("Parsing completed")
 
 
-def is_food_category(category_id: str) -> bool:
-    # TODO: Implement logic to determine if a category is a food category
-    return True
+def _is_food_category(category_id: int) -> bool:
+    if 1 <= category_id <= 19:
+        return True
+    return False
+
+
+def is_food_category(category: Category) -> bool:
+    if _is_food_category(category.id):
+        return True
+    if category.parent_id is not None:
+        return _is_food_category(category.parent_id)
+    return False
 
 
 def clean_numeric(value):
@@ -98,10 +108,16 @@ def process_nutritional_information():
     engine = get_engine()
     with Session(engine) as session:
         products = session.exec(
-            select(Product).where(Product.nutritional_information == None)  # noqa: E711
+            select(Product)
+            .where(Product.nutritional_information == None)  # noqa: E711
+            .options(joinedload(Product.category))
         ).all()
         for product in products:
-            if is_food_category(product.category_id) and product.images:
+            if (
+                product.category
+                and is_food_category(product.category)
+                and product.images
+            ):
                 logger.info(f"Processing product '{product.name}' ({product.id})")
                 last_image_url = product.images[-1].zoom_url
                 try:
