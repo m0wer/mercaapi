@@ -4,10 +4,11 @@ from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Query
 from sqlmodel import Session
 from pydantic import BaseModel, model_validator
 from loguru import logger
+from pathlib import Path
 
 from app.database import get_session
 from app.models import Product
-from app.ai.ticket import TicketImageInformationExtractor
+from app.ai.ticket import GeminiFileInformationExtractor
 from app.shared.cache import get_all_products
 from app.shared.product_matcher import find_closest_products
 
@@ -80,18 +81,28 @@ async def process_ticket(file: UploadFile = File(...)):
     if not api_key:
         raise HTTPException(status_code=500, detail="API key not configured")
 
-    extractor = TicketImageInformationExtractor(api_key=api_key)
+    extractor = GeminiFileInformationExtractor(api_key=api_key)
     file_data = await file.read()
     mime_type = file.content_type
 
     try:
-        extract_info = extractor.extract_ticket_info(file_data, mime_type)
+        if mime_type == "application/pdf":
+            temp_file = Path("temp_file.pdf")
+            with open(temp_file, "wb") as f:
+                f.write(file_data)
+            extract_info = await extractor.process_file(temp_file)
+            temp_file.unlink()  # Remove the temporary file
+        else:
+            extract_info = extractor.extract_ticket_info(file_data, mime_type)
+
+        if not extract_info:
+            raise ValueError("No information extracted from the ticket")
+        return extract_info
     except Exception as e:
-        logger.error(f"Error extracting ticket information: {e}")
+        logger.error(f"Error extracting ticket information: {str(e)}")
         raise HTTPException(
-            status_code=500, detail="Failed to extract ticket information"
+            status_code=500, detail=f"Failed to extract ticket information: {str(e)}"
         )
-    return extract_info
 
 
 def calculate_total(
