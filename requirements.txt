@@ -4,6 +4,8 @@
 #
 #    pip-compile requirements.in
 #
+aiofiles==24.1.0
+    # via -r requirements.in
 aiohappyeyeballs==2.4.3
     # via aiohttp
 aiohttp==3.10.9
@@ -28,13 +30,23 @@ certifi==2024.8.30
     #   httpcore
     #   httpx
     #   requests
+cffi==1.17.1
+    # via cryptography
 charset-normalizer==3.3.2
-    # via requests
+    # via
+    #   pdfminer-six
+    #   requests
 click==8.1.7
     # via
     #   -r requirements.in
     #   typer
     #   uvicorn
+cryptography==43.0.1
+    # via pdfminer-six
+deprecated==1.2.14
+    # via pikepdf
+deprecation==2.1.0
+    # via ocrmypdf
 dnspython==2.7.0
     # via email-validator
 email-validator==2.2.0
@@ -56,7 +68,7 @@ google-api-core[grpc]==2.20.0
     #   google-ai-generativelanguage
     #   google-api-python-client
     #   google-generativeai
-google-api-python-client==2.147.0
+google-api-python-client==2.148.0
     # via google-generativeai
 google-auth==2.35.0
     # via
@@ -67,7 +79,7 @@ google-auth==2.35.0
     #   google-generativeai
 google-auth-httplib2==0.2.0
     # via google-api-python-client
-google-generativeai==0.8.2
+google-generativeai==0.8.3
     # via -r requirements.in
 googleapis-common-protos==1.65.0
     # via
@@ -102,6 +114,8 @@ idna==3.10
     #   httpx
     #   requests
     #   yarl
+img2pdf==0.5.1
+    # via ocrmypdf
 iniconfig==2.0.0
     # via pytest
 jinja2==3.1.4
@@ -110,6 +124,8 @@ levenshtein==0.26.0
     # via python-levenshtein
 loguru==0.7.2
     # via -r requirements.in
+lxml==5.3.0
+    # via pikepdf
 mako==1.3.5
     # via alembic
 markdown-it-py==3.0.0
@@ -124,10 +140,32 @@ multidict==6.1.0
     # via
     #   aiohttp
     #   yarl
+ocrmypdf==16.5.0
+    # via -r requirements.in
 packaging==24.1
-    # via pytest
+    # via
+    #   deprecation
+    #   ocrmypdf
+    #   pikepdf
+    #   pytest
+pdfminer-six==20240706
+    # via ocrmypdf
+pi-heif==0.18.0
+    # via ocrmypdf
+pikepdf==9.3.0
+    # via
+    #   img2pdf
+    #   ocrmypdf
+pillow==10.4.0
+    # via
+    #   img2pdf
+    #   ocrmypdf
+    #   pi-heif
+    #   pikepdf
 pluggy==1.5.0
-    # via pytest
+    # via
+    #   ocrmypdf
+    #   pytest
 proto-plus==1.24.0
     # via
     #   google-ai-generativelanguage
@@ -146,6 +184,8 @@ pyasn1==0.6.1
     #   rsa
 pyasn1-modules==0.4.1
     # via google-auth
+pycparser==2.22
+    # via cffi
 pydantic==2.9.2
     # via
     #   -r requirements.in
@@ -156,6 +196,8 @@ pydantic-core==2.23.4
     # via pydantic
 pygments==2.18.0
     # via rich
+pymupdf==1.24.11
+    # via -r requirements.in
 pyparsing==3.1.4
     # via httplib2
 pytest==8.3.3
@@ -177,9 +219,13 @@ requests==2.32.3
     #   -r requirements.in
     #   google-api-core
 rich==13.9.2
-    # via typer
+    # via
+    #   ocrmypdf
+    #   typer
 rsa==4.9
     # via google-auth
+sh==2.0.7
+    # via -r requirements.in
 shellingham==1.5.4
     # via typer
 sniffio==1.3.1
@@ -225,5 +271,7 @@ watchfiles==0.24.0
     # via uvicorn
 websockets==13.1
     # via uvicorn
+wrapt==1.16.0
+    # via deprecated
 yarl==1.13.1
     # via aiohttp

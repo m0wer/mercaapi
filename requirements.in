@@ -1,3 +1,4 @@
+aiofiles
 aiohttp
 alembic
 click
@@ -5,11 +6,14 @@ fastapi[standard]
 fuzzywuzzy
 google-generativeai
 loguru
-requests
-sqlmodel
-tenacity
+ocrmypdf
 pydantic
+pymupdf
 pytest
 python-Levenshtein
 python-multipart
+requests
+sh
+sqlmodel
+tenacity
 unidecode

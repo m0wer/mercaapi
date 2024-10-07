@@ -3,10 +3,10 @@ from loguru import logger
 import os
 
 from app.ai.prompts import nutritional_info
-from app.ai.gemini import GeminiImageInformationExtractor
+from app.ai.gemini import GeminiFileInformationExtractor
 
 
-class NutritionFactsExtractor(GeminiImageInformationExtractor):
+class NutritionFactsExtractor(GeminiFileInformationExtractor):
     def __init__(self, api_key: str, model: str = "gemini-1.5-flash-latest"):
         super().__init__(api_key, model)
         self.prompt = nutritional_info
