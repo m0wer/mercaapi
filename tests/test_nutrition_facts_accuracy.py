@@ -110,7 +110,7 @@ test_cases = [
             "trans_fat": None,
             "total_carbohydrate": 51.2,
             "dietary_fiber": 1.9,
-            "total_sugars": None,
+            "total_sugars": 34.4,
             "protein": 4.5,
             "salt": 0.56,
         },

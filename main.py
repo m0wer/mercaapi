@@ -178,13 +178,20 @@ def process_nutritional_information():
 async def process_ticket(file: UploadFile = File(...)):
     """
     Handle POST requests to /ticket endpoint.
-    Accepts an image or PDF file, extracts ticket information, and returns it.
+    Accepts a PDF, JPEG, or PNG file, extracts ticket information, and returns it.
     """
     api_key = os.environ.get("GEMINI_API_KEY")
     if not api_key:
         raise HTTPException(status_code=500, detail="API key not configured")
 
-    extractor = TicketImageInformationExtractor(api_key=api_key)
+    allowed_mime_types = ["application/pdf", "image/jpeg", "image/png"]
+    if file.content_type not in allowed_mime_types:
+        raise HTTPException(
+            status_code=400,
+            detail="Unsupported file type. Please upload a PDF, JPEG, or PNG file.",
+        )
+
+    extractor = TicketImageInformationExtractor(api_key)
     file_data = await file.read()
     mime_type = file.content_type
 

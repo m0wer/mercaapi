@@ -54,30 +54,40 @@ class GeminiImageInformationExtractor:
         logger.debug(f"Upload successful. File info: {file_info}")
         return file_info["file"]["uri"]
 
-    def extract_info_from_file(self, file_uri: str, prompt: str) -> Dict[str, Any]:
+    def upload_files(self, files_data: list[tuple[bytes, str]]) -> list[str]:
+        parts = []
+        for file_data, mime_type in files_data:
+            parts.append(
+                {
+                    "file_data": {
+                        "mime_type": mime_type,
+                        "file_uri": self.upload_file(file_data, mime_type),
+                    }
+                }
+            )
+        return parts
+
+    def extract_info_from_files(
+        self, files_data: list[tuple[bytes, str]], prompt: str
+    ) -> Dict[str, Any]:
         headers = {"Content-Type": "application/json"}
         data = {
             "contents": [
                 {
                     "parts": [
                         {
-                            "file_data": {
-                                "mime_type": "image/jpeg",
-                                "file_uri": file_uri,
-                            }
-                        },
-                        {
                             "text": prompt,
                         },
+                        *files_data,
                     ]
                 }
             ]
         }
-        logger.info(f"Extracting information from file with URI: {file_uri}")
+        logger.info(f"Extracting information from files: {data}")
         response = requests.post(
             f"{self.generate_url}?key={self.api_key}", headers=headers, json=data
         )
-
+        logger.info(f"Response: {response.json()}")
         if response.status_code == 200:
             json_str = response.json()["candidates"][0]["content"]["parts"][0]["text"]
             # Extract the JSON object from the response text

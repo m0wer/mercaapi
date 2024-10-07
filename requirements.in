@@ -9,3 +9,4 @@ tenacity
 uvicorn
 pytest
 python-multipart
+pymupdf

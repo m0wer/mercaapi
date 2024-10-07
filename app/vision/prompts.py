@@ -36,7 +36,8 @@ Provide the output as a JSON object with the following structure:
             "name": "string",
             "quantity": number,
             "total_price": number,
-            "unit_price": number
+            "unit_price": number,
+            "price_per_kg": number
         }
     ]
 }
