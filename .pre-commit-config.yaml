@@ -15,4 +15,4 @@ repos:
   hooks:
     - id: mypy
       # add types-requests
-      additional_dependencies: [ 'types-requests', 'types-redis', 'sqlmodel', 'types-python-dateutil' ]
+      additional_dependencies: [ 'types-requests', 'types-redis', 'sqlmodel', 'types-python-dateutil', 'types-aiofiles' ]

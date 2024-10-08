@@ -1,3 +1,5 @@
 -c requirements.txt
 httpx
 pytest
+pytest-asyncio
+types-aiofiles

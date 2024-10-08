@@ -2,77 +2,16 @@ import os
 
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Query
 from sqlmodel import Session
-from pydantic import BaseModel, model_validator
 from loguru import logger
 from pathlib import Path
 
 from app.database import get_session
-from app.models import Product
+from app.models import Product, TicketStats, TicketInfo, ProductInfo
 from app.ai.ticket import GeminiFileInformationExtractor
 from app.shared.cache import get_all_products
 from app.shared.product_matcher import find_closest_products
 
 router = APIRouter(prefix="/ticket", tags=["ticket"])
-
-
-class TicketItem(BaseModel):
-    name: str
-    quantity: int = 1
-    total_price: float | None = None
-    unit_price: float | None = None
-
-    @model_validator(mode="before")
-    @classmethod
-    def guess_unit_price(cls, data: dict):
-        if "unit_price" not in data or data["unit_price"] is None:
-            if (
-                "total_price" in data
-                and data["total_price"] is not None
-                and data["total_price"] != 0
-                and data["quantity"] != 0
-            ):
-                data["unit_price"] = data["total_price"] / data["quantity"]
-        return data
-
-
-class TicketInfo(BaseModel):
-    ticket_number: int | None = None
-    date: str | None = None
-    time: str | None = None
-    total_price: float | None = None
-    items: list[TicketItem]
-
-
-class ProductInfo(BaseModel):
-    product: Product
-    is_food: bool
-    total_weight: float | None = None
-    total_calories: float | None = None
-    total_protein: float | None = None
-    total_carbs: float | None = None
-    total_fat: float | None = None
-
-
-class TicketStats(BaseModel):
-    total_calories: float
-    total_proteins: float
-    total_carbs: float
-    total_fat: float
-    total_fiber: float
-    avg_cost_per_daily_kcal: float
-    avg_cost_per_100g_protein: float
-    avg_cost_per_100g_carb: float
-    avg_cost_per_100g_fat: float
-    kcal_per_euro: float
-    number_of_daily_doses: float
-    average_daily_cost: float
-    protein_ratio: float
-    carb_ratio: float
-    fat_ratio: float
-    food_percentage: float
-    total_food_amount: float
-    food_products: list[ProductInfo]
-    non_food_products: list[ProductInfo]
 
 
 @router.post("/")
@@ -93,7 +32,7 @@ async def process_ticket(file: UploadFile = File(...)):
             extract_info = await extractor.process_file(temp_file)
             temp_file.unlink()  # Remove the temporary file
         else:
-            extract_info = extractor.extract_ticket_info(file_data, mime_type)
+            extract_info = await extractor.extract_ticket_info(file_data, mime_type)
 
         if not extract_info:
             raise ValueError("No information extracted from the ticket")
