@@ -46,8 +46,13 @@ pytest==8.3.3
     # via
     #   -c requirements.txt
     #   -r requirements-dev.in
+    #   pytest-asyncio
+pytest-asyncio==0.24.0
+    # via -r requirements-dev.in
 sniffio==1.3.1
     # via
     #   -c requirements.txt
     #   anyio
     #   httpx
+types-aiofiles==24.1.0.20240626
+    # via -r requirements-dev.in

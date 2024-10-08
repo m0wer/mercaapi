@@ -4,6 +4,7 @@ import os
 
 from app.ai.prompts import nutritional_info
 from app.ai.gemini import GeminiFileInformationExtractor
+from app.models import TicketInfo
 
 
 class NutritionFactsExtractor(GeminiFileInformationExtractor):
@@ -21,11 +22,10 @@ class NutritionFactsExtractor(GeminiFileInformationExtractor):
         mime_type = response.headers.get("Content-Type", "image/jpeg")
         return response.content, mime_type
 
-    def extract_nutrition_facts(self, image_url: str) -> dict:
+    async def extract_nutrition_facts(self, image_url: str) -> TicketInfo:
         image_data, mime_type = self.download_image(image_url)
         logger.info(f"Processing image URL: {image_url}")
-        file_uri = self.upload_file(image_data, mime_type)
-        extract_info = self.extract_info_from_file(file_uri, self.prompt)
+        extract_info = await self.extract_ticket_info(image_data, mime_type)
         return extract_info
 
 

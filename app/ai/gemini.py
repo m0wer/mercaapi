@@ -1,14 +1,17 @@
 import json
 import requests
-from loguru import logger
 import re
-from typing import Dict, Any, Union
+from typing import Union
 from pathlib import Path
+import sys
+import time
+
+from loguru import logger
 import aiofiles
 from sh import ErrorReturnCode, ocrmypdf
 from pymupdf.__main__ import main as fitz_command
-import sys
-import time
+
+from app.models import TicketInfo
 
 
 class GeminiFileInformationExtractor:
@@ -39,6 +42,8 @@ class GeminiFileInformationExtractor:
 
         The ticket text comes from a PDF file with several pages.
         There's one product per line excpet for line with weight information for products sold by weight one line above).
+        Ignore the lines that have "Peso", they are not products.
+
         The columns are product name, quantity, and total prics (unit price * quantity).
         For porducts that are sold by weight,
         there's a line below the prorduct name with the weigth and price per kilogram.
@@ -81,7 +86,7 @@ class GeminiFileInformationExtractor:
 
         return " ".join(filter(None, text.split(" ")))[:4000]
 
-    def extract_info_from_text(self, text: str) -> Dict[str, Any]:
+    def extract_info_from_text(self, text: str) -> TicketInfo:
         headers = {"Content-Type": "application/json"}
         data = {
             "contents": [
@@ -104,12 +109,12 @@ class GeminiFileInformationExtractor:
             json_str = re.sub(r"\n\s*```$", "", json_str)
             json_obj = json.loads(json_str)
             logger.info(f"Information extracted: {json_obj}")
-            return json_obj
+            return TicketInfo.parse_obj(json_obj)
         else:
             logger.error(f"Error: {response.status_code}, {response.text}")
             raise Exception(f"Error: {response.status_code}, {response.text}")
 
-    async def process_file(self, file_path: Union[str, Path]) -> Dict[str, Any]:
+    async def process_file(self, file_path: Union[str, Path]) -> TicketInfo:
         file_path = Path(file_path)
 
         if file_path.suffix.lower() == ".pdf":
@@ -124,9 +129,7 @@ class GeminiFileInformationExtractor:
 
         return self.extract_info_from_text(text)
 
-    async def extract_ticket_info(
-        self, file_data: bytes, mime_type: str
-    ) -> Dict[str, Any]:
+    async def extract_ticket_info(self, file_data: bytes, mime_type: str) -> TicketInfo:
         logger.info("Processing ticket from bytes")
         try:
             temp_file = Path(
@@ -138,6 +141,7 @@ class GeminiFileInformationExtractor:
             extract_info = await self.process_file(temp_file)
             temp_file.unlink()  # Remove the temporary file
             return extract_info
+
         except Exception as e:
             logger.error(f"Error in extract_ticket_info: {str(e)}")
             raise

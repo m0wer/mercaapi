@@ -3,7 +3,7 @@ from typing import Union
 
 
 from sqlmodel import SQLModel, Field, Relationship
-from pydantic import BaseModel
+from pydantic import BaseModel, model_validator
 
 
 class Category(SQLModel, table=True):
@@ -79,3 +79,63 @@ class NutritionalInformation(SQLModel, table=True):
 class ProductMatch(BaseModel):
     score: float
     product: Product
+
+
+class TicketItem(BaseModel):
+    name: str
+    quantity: int = 1
+    total_price: float | None = None
+    unit_price: float | None = None
+
+    @model_validator(mode="before")
+    @classmethod
+    def guess_unit_price(cls, data: dict):
+        if "unit_price" not in data or data["unit_price"] is None:
+            if (
+                "total_price" in data
+                and data["total_price"] is not None
+                and data["total_price"] != 0
+                and data["quantity"] != 0
+            ):
+                data["unit_price"] = data["total_price"] / data["quantity"]
+        return data
+
+
+class TicketInfo(BaseModel):
+    ticket_number: int | None = None
+    date: str | None = None
+    time: str | None = None
+    total_price: float | None = None
+    items: list[TicketItem]
+
+
+class ProductInfo(BaseModel):
+    product: Product
+    is_food: bool
+    total_weight: float | None = None
+    total_calories: float | None = None
+    total_protein: float | None = None
+    total_carbs: float | None = None
+    total_fat: float | None = None
+
+
+class TicketStats(BaseModel):
+    total_calories: float
+    total_proteins: float
+    total_carbs: float
+    total_fat: float
+    total_fiber: float
+    avg_cost_per_daily_kcal: float
+    avg_cost_per_100g_protein: float
+    avg_cost_per_100g_carb: float
+    avg_cost_per_100g_fat: float
+    kcal_per_euro: float
+    number_of_daily_doses: float
+    average_daily_cost: float
+    protein_ratio: float
+    carb_ratio: float
+    fat_ratio: float
+    food_percentage: float
+    total_food_amount: float
+    food_products: list[ProductInfo]
+    non_food_products: list[ProductInfo]
