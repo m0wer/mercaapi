@@ -1,9 +1,11 @@
 from datetime import datetime
-from typing import Union
+from typing import Union, Any
 
 
 from sqlmodel import SQLModel, Field, Relationship
 from pydantic import BaseModel, model_validator
+from typing_extensions import Annotated
+from pydantic.functional_validators import BeforeValidator
 
 
 class Category(SQLModel, table=True):
@@ -81,23 +83,23 @@ class ProductMatch(BaseModel):
     product: Product
 
 
+def default_quantity(v: Any) -> int:
+    if v is None:
+        return 1
+    return v
+
+
 class TicketItem(BaseModel):
     name: str
-    quantity: int = 1
+    quantity: Annotated[int, BeforeValidator(default_quantity)] = 1
     total_price: float | None = None
     unit_price: float | None = None
 
     @model_validator(mode="before")
     @classmethod
     def guess_unit_price(cls, data: dict):
-        if "unit_price" not in data or data["unit_price"] is None:
-            if (
-                "total_price" in data
-                and data["total_price"] is not None
-                and data["total_price"] != 0
-                and data["quantity"] != 0
-            ):
-                data["unit_price"] = data["total_price"] / data["quantity"]
+        if not data.get("unit_price") and data.get("total_price") and data["quantity"]:
+            data["unit_price"] = data["total_price"] / data["quantity"]
         return data
 
 
@@ -107,6 +109,14 @@ class TicketInfo(BaseModel):
     time: str | None = None
     total_price: float | None = None
     items: list[TicketItem]
+
+    @model_validator(mode="after")
+    def guess_total(self):
+        if self.total_price is None:
+            self.total_price = sum(
+                item.total_price for item in self.items if item.total_price is not None
+            )
+        return self
 
 
 class ProductInfo(BaseModel):

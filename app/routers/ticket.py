@@ -7,40 +7,74 @@ from pathlib import Path
 
 from app.database import get_session
 from app.models import Product, TicketStats, TicketInfo, ProductInfo
-from app.ai.ticket import GeminiFileInformationExtractor
 from app.shared.cache import get_all_products
 from app.shared.product_matcher import find_closest_products
+from tempfile import TemporaryDirectory
+from typing import Union
+
+from fastapi import Form
+import requests
+
+from app.ai.ticket import AIInformationExtractor
 
 router = APIRouter(prefix="/ticket", tags=["ticket"])
 
+api_key = os.environ.get("GEMINI_API_KEY")
+if not api_key:
+    raise RuntimeError("GEMINI_API_KEY environment variable is not set")
 
-@router.post("/")
-async def process_ticket(file: UploadFile = File(...)):
-    api_key = os.environ.get("GEMINI_API_KEY")
-    if not api_key:
-        raise HTTPException(status_code=500, detail="API key not configured")
+extractor = AIInformationExtractor(api_key=api_key)
 
-    extractor = GeminiFileInformationExtractor(api_key=api_key)
-    file_data = await file.read()
-    mime_type = file.content_type
+TICKET_PROMPT = """
+Extract all products/items from this image.
+Provide the output as a JSON object with the following structure:
+{
+    "ticket_number": number,
+    "date": "DD/MM/YYYY",
+    "time": "HH:MM",
+    "total_price": number,
+    "items": [
+        {
+            "name": "string",
+            "quantity": number,
+            "total_price": number,
+            "unit_price": number
+        }
+    ]
+}
+Use null for any values not present in the image.
+Ensure all numeric values are numbers, not strings.
+"""
+
+
+@router.post("/", response_model=TicketInfo)
+async def process_ticket(
+    file: Union[UploadFile, None] = File(None), image_url: Union[str, None] = Form(None)
+):
+    if file is None and image_url is None:
+        raise HTTPException(
+            status_code=400, detail="Either file or image_url must be provided"
+        )
 
     try:
-        if mime_type == "application/pdf":
-            temp_file = Path("temp_file.pdf")
-            with open(temp_file, "wb") as f:
-                f.write(file_data)
-            extract_info = await extractor.process_file(temp_file)
-            temp_file.unlink()  # Remove the temporary file
-        else:
-            extract_info = await extractor.extract_ticket_info(file_data, mime_type)
+        with TemporaryDirectory() as temp_dir:
+            if file:
+                temp_file_path = Path(temp_dir) / file.filename
+                with temp_file_path.open("wb") as buffer:
+                    buffer.write(await file.read())
+            elif image_url:
+                response = requests.get(image_url)
+                response.raise_for_status()
+                temp_file_path = Path(temp_dir) / "image_from_url"
+                temp_file_path.write_bytes(response.content)
 
-        if not extract_info:
-            raise ValueError("No information extracted from the ticket")
-        return extract_info
+            ticket_info = await extractor.process_file(temp_file_path, TICKET_PROMPT)
+
+        return ticket_info
     except Exception as e:
-        logger.error(f"Error extracting ticket information: {str(e)}")
+        logger.error(f"Error processing ticket: {str(e)}")
         raise HTTPException(
-            status_code=500, detail=f"Failed to extract ticket information: {str(e)}"
+            status_code=500, detail=f"Error processing ticket: {str(e)}"
         )
 
 

@@ -2,4 +2,5 @@
 httpx
 pytest
 pytest-asyncio
+pytest-retry
 types-aiofiles
