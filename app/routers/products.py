@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException, Query
-from sqlmodel import Session, select
+from sqlmodel import Session
 from app.database import get_session
-from app.models import Product, NutritionalInformation, ProductImage, ProductMatch
+from app.models import ProductMatch
 from app.shared.cache import get_all_products
 from app.shared.product_matcher import find_closest_products
 from typing import List
@@ -15,7 +15,7 @@ logger = logging.getLogger(__name__)
 def get_products(
     skip: int = 0, limit: int = 100, session: Session = Depends(get_session)
 ):
-    products = session.exec(select(Product).offset(skip).limit(limit)).all()
+    products = get_all_products(session)[skip : skip + limit]
     return products
 
 
@@ -52,12 +52,10 @@ def get_closest_product(
 
 @router.get("/{product_id}")
 def get_product(product_id: str, session: Session = Depends(get_session)):
-    result = session.exec(
-        select(Product)
-        .join(NutritionalInformation, isouter=True)
-        .join(ProductImage, isouter=True)
-        .where(Product.id == product_id)
-    ).first()
+    products = get_all_products(session)
+    result = next(
+        iter([product for product in products if product.id == product_id]), None
+    )
 
     if result is None:
         raise HTTPException(status_code=404, detail="Product not found")

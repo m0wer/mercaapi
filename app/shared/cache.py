@@ -4,7 +4,7 @@ from typing import Any
 from loguru import logger
 from sqlmodel import select, Session
 
-from app.models import Product
+from app.models import Product, NutritionalInformation, ProductImage
 
 
 class Cache:
@@ -33,6 +33,10 @@ def get_all_products(session: Session):
         return cached_products
 
     logger.debug("Fetching all products from database")
-    products = session.exec(select(Product)).all()
+    products = session.exec(
+        select(Product)
+        .join(NutritionalInformation, isouter=True)
+        .join(ProductImage, isouter=True)
+    ).all()
     cache.set("all_products", products)
     return products
