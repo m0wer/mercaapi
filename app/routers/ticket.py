@@ -6,7 +6,7 @@ from loguru import logger
 from pathlib import Path
 
 from app.database import get_session
-from app.models import Product, TicketStats, TicketInfo, ProductInfo
+from app.models import TicketInfo
 from app.shared.cache import get_all_products
 from app.shared.product_matcher import find_closest_products
 from tempfile import TemporaryDirectory
@@ -106,8 +106,7 @@ async def calculate_ticket_stats(
     total_fat = 0
     total_fiber = 0
     total_food_price: float = 0.0
-    food_products = []
-    non_food_products = []
+    items: list[dict] = []
 
     all_products = get_all_products(session)
 
@@ -118,11 +117,15 @@ async def calculate_ticket_stats(
 
         if not closest_products:
             logger.warning(f"No match found for product '{item.name}'.")
-            non_food_products.append(
-                ProductInfo(
-                    product=Product(name=item.name, price=item.unit_price),
-                    is_food=False,
-                )
+            items.append(
+                {
+                    "name": item.name,
+                    "price": item.unit_price,
+                    "is_food": False,
+                    "quantity": item.quantity,
+                    "unit_price": item.unit_price,
+                    "images": [],
+                }
             )
             continue
 
@@ -135,7 +138,16 @@ async def calculate_ticket_stats(
             product.nutritional_information is not None
             and product.nutritional_information.calories is not None
         )
-        product_info = ProductInfo(product=product, is_food=is_food)
+
+        product_info = {
+            **product.dict(),
+            "is_food": is_food,
+            "quantity": item.quantity,
+            "unit_price": item.unit_price,
+            "images": [image.zoom_url for image in product.images]
+            if product.images
+            else [],
+        }
 
         if is_food and product.nutritional_information:
             unit_size = product.unit_size if product.unit_size is not None else 1
@@ -174,11 +186,11 @@ async def calculate_ticket_stats(
             if calories is not None:
                 total_calories += calories
                 total_food_price += item.total_price or 0.0
-                product_info.total_calories = int(calories)
-                product_info.total_weight = unit_size * item.quantity
-                product_info.total_protein = proteins
-                product_info.total_carbs = carbs
-                product_info.total_fat = fats
+                product_info["total_calories"] = int(calories)
+                product_info["total_weight"] = unit_size * item.quantity
+                product_info["total_protein"] = proteins
+                product_info["total_carbs"] = carbs
+                product_info["total_fat"] = fats
 
             if proteins is not None:
                 total_proteins += proteins
@@ -189,13 +201,11 @@ async def calculate_ticket_stats(
             if fiber is not None:
                 total_fiber += fiber
 
-            food_products.append(product_info)
-
             logger.debug(
                 f"Product: {product.name}, Calories: {calories}, Protein: {proteins}, Carbs: {carbs}, Fat: {fats}, Fiber: {fiber}"
             )
-        else:
-            non_food_products.append(product_info)
+
+        items.append(product_info)
 
     total_price: float = ticket_info.total_price or sum(
         item.total_price for item in ticket_info.items if item.total_price is not None
@@ -225,24 +235,23 @@ async def calculate_ticket_stats(
     carb_ratio = (total_carbs / total_macros) * 100 if total_macros > 0 else 0
     fat_ratio = (total_fat / total_macros) * 100 if total_macros > 0 else 0
 
-    return TicketStats(
-        total_calories=total_calories,
-        total_proteins=total_proteins,
-        total_carbs=total_carbs,
-        total_fat=total_fat,
-        total_fiber=total_fiber,
-        avg_cost_per_daily_kcal=avg_cost_per_daily_kcal,
-        avg_cost_per_100g_protein=avg_cost_per_100g_protein,
-        avg_cost_per_100g_carb=avg_cost_per_100g_carb,
-        avg_cost_per_100g_fat=avg_cost_per_100g_fat,
-        kcal_per_euro=kcal_per_euro,
-        number_of_daily_doses=number_of_daily_doses,
-        average_daily_cost=average_daily_cost,
-        protein_ratio=protein_ratio,
-        carb_ratio=carb_ratio,
-        fat_ratio=fat_ratio,
-        food_percentage=food_percentage,
-        total_food_amount=total_food_price,
-        food_products=food_products,
-        non_food_products=non_food_products,
-    )
+    return {
+        "total_calories": total_calories,
+        "total_proteins": total_proteins,
+        "total_carbs": total_carbs,
+        "total_fat": total_fat,
+        "total_fiber": total_fiber,
+        "avg_cost_per_daily_kcal": avg_cost_per_daily_kcal,
+        "avg_cost_per_100g_protein": avg_cost_per_100g_protein,
+        "avg_cost_per_100g_carb": avg_cost_per_100g_carb,
+        "avg_cost_per_100g_fat": avg_cost_per_100g_fat,
+        "kcal_per_euro": kcal_per_euro,
+        "number_of_daily_doses": number_of_daily_doses,
+        "average_daily_cost": average_daily_cost,
+        "protein_ratio": protein_ratio,
+        "carb_ratio": carb_ratio,
+        "fat_ratio": fat_ratio,
+        "food_percentage": food_percentage,
+        "total_food_amount": total_food_price,
+        "items": items,
+    }
