@@ -1,3 +1,5 @@
+import pytest
+
 from fastapi.testclient import TestClient
 
 
@@ -7,10 +9,11 @@ def test_get_products(client: TestClient, test_data):
     products = response.json()
     assert len(products) == 3
     assert any(product["name"] == "Apple" for product in products)
+    assert all("nutritional_information" in product for product in products)
+    assert all("images" in product for product in products)
 
 
 def test_get_product(client: TestClient, test_data):
-    # Get the first product from the database
     response = client.get("/products")
     products = response.json()
     first_product_id = products[0]["id"]
@@ -65,3 +68,44 @@ def test_closest_product_by_name_and_price(client: TestClient, test_data):
 def test_closest_product_no_params(client: TestClient, test_data):
     response = client.get("/products/closest")
     assert response.status_code == 400
+
+
+@pytest.mark.xfail
+def test_process_ticket_and_calculate_stats(client: TestClient, test_data):
+    # Mock ticket data
+    ticket_data = {"file": ("ticket.jpg", b"mock image data", "image/jpeg")}
+
+    response = client.post("/ticket/", files=ticket_data)
+    assert response.status_code == 200
+    ticket_stats = response.json()
+
+    assert "items" in ticket_stats
+    assert len(ticket_stats["items"]) > 0
+
+    for item in ticket_stats["items"]:
+        assert "product" in item
+        assert "original_name" in item
+        assert "quantity" in item
+        assert "unit_price" in item
+        assert "total_price" in item
+        assert "stats" in item
+
+        product = item["product"]
+        assert "id" in product
+        assert "name" in product
+        assert "price" in product
+        assert "nutritional_information" in product
+        assert "images" in product
+
+        if item["stats"]:
+            stats = item["stats"]
+            assert "calories" in stats
+            assert "proteins" in stats
+            assert "carbs" in stats
+            assert "fat" in stats
+            assert "fiber" in stats
+            assert "cost_per_daily_kcal" in stats
+            assert "cost_per_100g_protein" in stats
+            assert "cost_per_100g_carb" in stats
+            assert "cost_per_100g_fat" in stats
+            assert "kcal_per_euro" in stats

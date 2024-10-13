@@ -1,7 +1,9 @@
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlmodel import Session
 from app.database import get_session
-from app.models import ProductMatch
+from app.models import ProductMatch, ProductPublic
+
+
 from app.shared.cache import get_all_products
 from app.shared.product_matcher import find_closest_products
 from typing import List
@@ -11,12 +13,12 @@ router = APIRouter(prefix="/products", tags=["products"])
 logger = logging.getLogger(__name__)
 
 
-@router.get("/")
+@router.get("/", response_model=List[ProductPublic])
 def get_products(
     skip: int = 0, limit: int = 100, session: Session = Depends(get_session)
 ):
     products = get_all_products(session)[skip : skip + limit]
-    return products
+    return [ProductPublic.model_validate(product) for product in products]
 
 
 @router.get("/closest", response_model=List[ProductMatch])
@@ -47,10 +49,15 @@ def get_closest_product(
             f"  Match: {match.product.name}, {match.product.price:.2f} € (Score: {match.score:.2f})"
         )
 
-    return matches[:max_results]
+    return [
+        ProductMatch(
+            score=match.score, product=ProductPublic.model_validate(match.product)
+        )
+        for match in matches[:max_results]
+    ]
 
 
-@router.get("/{product_id}")
+@router.get("/{product_id}", response_model=ProductPublic)
 def get_product(product_id: str, session: Session = Depends(get_session)):
     products = get_all_products(session)
     result = next(
@@ -62,14 +69,4 @@ def get_product(product_id: str, session: Session = Depends(get_session)):
 
     product = result
 
-    return {
-        **product.model_dump(),
-        "nutritional_information": product.nutritional_information.model_dump(
-            exclude={"id"}
-        )
-        if product.nutritional_information is not None
-        else None,
-        "images": [
-            image.model_dump(exclude={"id", "product_id"}) for image in product.images
-        ],
-    }
+    return ProductPublic.model_validate(product)

@@ -9,7 +9,7 @@ from loguru import logger
 from sh import ErrorReturnCode, ocrmypdf
 from pymupdf.__main__ import main as fitz_command
 
-from app.models import TicketInfo, NutritionalInformation
+from app.models import ExtractedTicketInfo, NutritionalInformation
 
 
 class AIInformationExtractor:
@@ -20,9 +20,9 @@ class AIInformationExtractor:
         self.upload_url = f"{self.base_url}/upload/v1beta/files"
         self.generate_url = f"{self.base_url}/v1beta/models/{model}:generateContent"
 
-    async def process_file(
+    async def process_file_ticket(
         self, file_path: Union[str, Path], prompt: str
-    ) -> Union[TicketInfo, NutritionalInformation]:
+    ) -> ExtractedTicketInfo:
         file_path = Path(file_path)
 
         if file_path.suffix.lower() == ".pdf":
@@ -31,11 +31,23 @@ class AIInformationExtractor:
         elif file_path.suffix.lower() in [".jpg", ".jpeg", ".png"]:
             with open(file_path, "rb") as image_file:
                 file_data = image_file.read()
-            return await self._process_image(file_data, prompt)
+            return await self._process_image_ticket(file_data, prompt)
         else:
             raise ValueError(
                 "Unsupported file type. Please use PDF, JPEG, or PNG files."
             )
+
+    async def process_file_nutrition(
+        self, file_path: Union[str, Path], prompt: str
+    ) -> NutritionalInformation:
+        file_path = Path(file_path)
+
+        if file_path.suffix.lower() in [".jpg", ".jpeg", ".png"]:
+            with open(file_path, "rb") as image_file:
+                file_data = image_file.read()
+            return await self._process_image_nutrition(file_data, prompt)
+        else:
+            raise ValueError("Unsupported file type. Please use JPEG, PNG files.")
 
     async def _extract_text_from_pdf(self, file_path: Path) -> str:
         try:
@@ -67,9 +79,7 @@ class AIInformationExtractor:
 
         return " ".join(filter(None, text.split(" ")))[:4000]
 
-    def _extract_info_from_text(
-        self, text: str, prompt: str
-    ) -> Union[TicketInfo, NutritionalInformation]:
+    def _extract_info_from_text(self, text: str, prompt: str) -> ExtractedTicketInfo:
         headers = {"Content-Type": "application/json"}
         data = {
             "contents": [
@@ -94,18 +104,24 @@ class AIInformationExtractor:
             logger.info(f"Information extracted: {json_obj}")
 
             if "items" in json_obj:
-                return TicketInfo.parse_obj(json_obj)
+                return ExtractedTicketInfo.parse_obj(json_obj)
             else:
-                return NutritionalInformation.parse_obj(json_obj)
+                raise RuntimeError("No items found in the extracted JSON")
         else:
             logger.error(f"Error: {response.status_code}, {response.text}")
             raise Exception(f"Error: {response.status_code}, {response.text}")
 
-    async def _process_image(
+    async def _process_image_ticket(
         self, file_data: bytes, prompt: str
-    ) -> Union[TicketInfo, NutritionalInformation]:
+    ) -> ExtractedTicketInfo:
         file_uri = self._upload_file(file_data, "image/jpeg")
         return self._extract_info_from_file(file_uri, prompt)
+
+    async def _process_image_nutrition(
+        self, file_data: bytes, prompt: str
+    ) -> NutritionalInformation:
+        file_uri = self._upload_file(file_data, "image/jpeg")
+        return self._extract_nutrition_info_from_file(file_uri, prompt)
 
     def _upload_file(self, file_data: bytes, mime_type: str) -> str:
         num_bytes = len(file_data)
@@ -143,7 +159,7 @@ class AIInformationExtractor:
 
     def _extract_info_from_file(
         self, file_uri: str, prompt: str
-    ) -> Union[TicketInfo, NutritionalInformation]:
+    ) -> ExtractedTicketInfo:
         headers = {"Content-Type": "application/json"}
         data = {
             "contents": [
@@ -175,9 +191,47 @@ class AIInformationExtractor:
             logger.info(f"Information extracted: {json_obj}")
 
             if "items" in json_obj:
-                return TicketInfo.parse_obj(json_obj)
+                return ExtractedTicketInfo.parse_obj(json_obj)
             else:
-                return NutritionalInformation.parse_obj(json_obj)
+                raise RuntimeError("No items found in the extracted JSON")
+        else:
+            logger.error(f"Error: {response.status_code}, {response.text}")
+            raise Exception(f"Error: {response.status_code}, {response.text}")
+
+    def _extract_nutrition_info_from_file(
+        self, file_uri: str, prompt: str
+    ) -> NutritionalInformation:
+        headers = {"Content-Type": "application/json"}
+        data = {
+            "contents": [
+                {
+                    "parts": [
+                        {
+                            "file_data": {
+                                "mime_type": "image/jpeg",
+                                "file_uri": file_uri,
+                            }
+                        },
+                        {
+                            "text": prompt,
+                        },
+                    ]
+                }
+            ]
+        }
+        logger.info(f"Extracting information from file with URI: {file_uri}")
+        response = requests.post(
+            f"{self.generate_url}?key={self.api_key}", headers=headers, json=data
+        )
+
+        if response.status_code == 200:
+            json_str = response.json()["candidates"][0]["content"]["parts"][0]["text"]
+            json_str = re.sub(r"^```json\s*\n", "", json_str)
+            json_str = re.sub(r"\n\s*```$", "", json_str)
+            json_obj = json.loads(json_str)
+            logger.info(f"Information extracted: {json_obj}")
+
+            return NutritionalInformation.parse_obj(json_obj)
         else:
             logger.error(f"Error: {response.status_code}, {response.text}")
             raise Exception(f"Error: {response.status_code}, {response.text}")
@@ -215,7 +269,7 @@ if __name__ == "__main__":
     Use null for any values not present in the image.
     Ensure all numeric values are numbers, not strings.
     """
-    ticket_info = extractor.process_file("path/to/ticket.jpg", ticket_prompt)
+    ticket_info = extractor.process_file_ticket("path/to/ticket.jpg", ticket_prompt)
     print(ticket_info)
 
     # Example for processing a nutrition facts image
@@ -239,5 +293,7 @@ if __name__ == "__main__":
     Use null for any values not present in the image.
     Ensure all numeric values are numbers, not strings.
     """
-    nutrition_info = extractor.process_file("path/to/nutrition.png", nutrition_prompt)
+    nutrition_info = extractor.process_file_ticket(
+        "path/to/nutrition.png", nutrition_prompt
+    )
     print(nutrition_info)
