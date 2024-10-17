@@ -1,5 +1,6 @@
 from datetime import datetime
 from typing import Union, Any, List
+from typing_extensions import Self
 
 from sqlmodel import SQLModel, Field, Relationship
 from pydantic import BaseModel, model_validator
@@ -89,6 +90,17 @@ class PriceHistory(PriceHistoryBase, table=True):
     product: Product = Relationship(back_populates="price_history")
 
 
+# Helper functions
+
+
+def is_food_category(category: Category) -> bool:
+    if 1 <= category.id <= 19:
+        return True
+    if category.parent_id is not None:
+        return 1 <= category.parent_id <= 19
+    return False
+
+
 # Public models
 class CategoryPublic(CategoryBase):
     id: int
@@ -109,6 +121,12 @@ class ProductPublic(ProductBase):
     images: List[ProductImagePublic] = []
     nutritional_information: NutritionalInformationPublic | None = None
     price_history: List["PriceHistoryPublic"] = []
+    is_food: bool = False
+
+    @model_validator(mode="after")
+    def set_is_food(self) -> Self:
+        self.is_food = is_food_category(Category.parse_obj(self.category))
+        return self
 
 
 class PriceHistoryPublic(PriceHistoryBase):
@@ -168,16 +186,6 @@ class TicketInfo(BaseModel):
                 item.total_price for item in self.items if item.total_price is not None
             )
         return self
-
-
-class ProductInfo(BaseModel):
-    product: ProductPublic
-    is_food: bool
-    total_weight: float | None = None
-    total_calories: float | None = None
-    total_protein: float | None = None
-    total_carbs: float | None = None
-    total_fat: float | None = None
 
 
 class ExtractedTicketItem(BaseModel):

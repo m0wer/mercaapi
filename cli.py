@@ -8,7 +8,7 @@ from sqlalchemy.orm import joinedload
 
 from app.database import get_engine
 from app.parser import parse_mercadona
-from app.models import Product, NutritionalInformation, Category
+from app.models import Product, NutritionalInformation, is_food_category
 from app.ai.nutrition_facts import NutritionFactsExtractor
 from app.ai.nutrition_estimator import estimate_nutritional_info
 
@@ -31,14 +31,6 @@ def parse(max_requests, update_existing=False):
         )
     )
     logger.info("Parsing completed")
-
-
-def is_food_category(category: Category) -> bool:
-    if 1 <= category.id <= 19:
-        return True
-    if category.parent_id is not None:
-        return 1 <= category.parent_id <= 19
-    return False
 
 
 def clean_numeric(value):
