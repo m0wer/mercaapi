@@ -6,6 +6,7 @@ DATABASE_URL = "sqlite:///./mercadona.db"
 
 @lru_cache()
 def get_engine(db_url: str = DATABASE_URL):
+    breakpoint()
     return create_engine(db_url, connect_args={"check_same_thread": False})
 
 

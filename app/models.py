@@ -125,7 +125,7 @@ class ProductPublic(ProductBase):
 
     @model_validator(mode="after")
     def set_is_food(self) -> Self:
-        self.is_food = is_food_category(Category.parse_obj(self.category))
+        self.is_food = is_food_category(Category.model_validate(self.category))
         return self
 
 
@@ -193,6 +193,16 @@ class ExtractedTicketItem(BaseModel):
     quantity: int
     total_price: float
     unit_price: float
+
+    @model_validator(mode="before")
+    def calculate_total_price(cls, values: Any) -> Any:
+        values["unit_price"] = (
+            values["total_price"] / values["quantity"]
+            if values["quantity"] > 0
+            else 0.0
+        )
+
+        return values
 
 
 class ExtractedTicketInfo(BaseModel):
