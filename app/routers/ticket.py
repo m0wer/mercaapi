@@ -59,11 +59,11 @@ def calculate_item_stats(
     unit_size = product.unit_size if product.unit_size is not None else 1
     total_weight = unit_size * quantity
 
-    calories = (ni.calories or 0) * total_weight / 100
-    proteins = (ni.protein or 0) * total_weight / 100
-    carbs = (ni.total_carbohydrate or 0) * total_weight / 100
-    fat = (ni.total_fat or 0) * total_weight / 100
-    fiber = (ni.dietary_fiber or 0) * total_weight / 100
+    calories = (ni.calories or 0) * total_weight * 10
+    proteins = (ni.protein or 0) * total_weight * 10
+    carbs = (ni.total_carbohydrate or 0) * total_weight * 10
+    fat = (ni.total_fat or 0) * total_weight * 10
+    fiber = (ni.dietary_fiber or 0) * total_weight * 10
 
     daily_kcal = 2000  # Default value, can be made configurable
 
