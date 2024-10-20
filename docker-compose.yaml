@@ -2,6 +2,7 @@ services:
   app:
     build: .
     image: ghcr.io/m0wer/mercaapi:master
+    command: fastapi run --reload --port 80
     ports:
       - "8000:80"
     volumes:
@@ -9,3 +10,87 @@ services:
       - ./mercadona.db:/app/mercadona.db
       - ./main.py:/app/main.py
       - ./alembic.ini:/app/alembic.ini
+    environment:
+      - PYTHONPATH=/app
+      - GEMINI_API_KEY=${GEMINI_API_KEY}
+      - CELERY_BROKER_URL=redis://redis:6379/0
+      - CELERY_RESULT_BACKEND=redis://redis:6379/0
+    depends_on:
+      - redis
+      - worker-high
+    deploy:
+      resources:
+        limits:
+          cpus: '2'
+          memory: 512M
+    restart: always
+
+  tests:
+    build: .
+    image: ghcr.io/m0wer/mercaapi:master
+    command: sh -c exit
+    volumes:
+      - .:/app
+    environment:
+      - PYTHONPATH=/app
+      - GEMINI_API_KEY=${GEMINI_API_KEY}
+      - CELERY_BROKER_URL=redis://redis:6379/0
+      - CELERY_RESULT_BACKEND=redis://redis:6379/0
+    depends_on:
+      - redis
+    deploy:
+      resources:
+        limits:
+          cpus: '1'
+          memory: 256M
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    volumes:
+      - ./redis:/data
+    deploy:
+      resources:
+        limits:
+          cpus: '1'
+          memory: 1G
+    restart: always
+
+  worker-high:
+    build: .
+    command: celery -A app.worker worker -Q high -c 8 -l DEBUG
+    environment:
+      - CELERY_BROKER_URL=redis://redis:6379/0
+      - CELERY_RESULT_BACKEND=redis://redis:6379/0
+      - PYTHONPATH=/app
+    volumes:
+      - ./app:/app/app
+      - ./mercadona.db:/app/mercadona.db
+    depends_on:
+      - redis
+    user: '1000:1000'
+    deploy:
+      resources:
+        limits:
+          cpus: '8'
+          memory: 2G
+    restart: always
+
+  flower:
+    image: mher/flower
+    command: celery flower --broker=redis://redis:6379/0 --port=5555
+    ports:
+      - "5555:5555"
+    environment:
+      - CELERY_BROKER_URL=redis://redis:6379/0
+      - CELERY_RESULT_BACKEND=redis://redis:6379/0
+    depends_on:
+      - redis
+      - worker-high
+    deploy:
+      resources:
+        limits:
+          cpus: "1"
+          memory: 256M
+    restart: always

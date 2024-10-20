@@ -1,8 +1,11 @@
+aiocache
 aiofiles
 aiohttp
 alembic
+celery
 click
 fastapi[standard]
+flower
 fuzzywuzzy
 google-generativeai
 loguru
@@ -12,6 +15,7 @@ pymupdf
 pytest
 python-Levenshtein
 python-multipart
+redis
 requests
 sh
 sqlmodel

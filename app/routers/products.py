@@ -2,15 +2,12 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlmodel import Session
 from app.database import get_session
 from app.models import ProductMatch, ProductPublic
-
-
+from app.worker import find_closest_products_with_preload
 from app.shared.cache import get_all_products
-from app.shared.product_matcher import find_closest_products
 from typing import List
-import logging
+from loguru import logger
 
 router = APIRouter(prefix="/products", tags=["products"])
-logger = logging.getLogger(__name__)
 
 
 @router.get("/", response_model=List[ProductPublic])
@@ -22,7 +19,7 @@ def get_products(
 
 
 @router.get("/closest", response_model=List[ProductMatch])
-def get_closest_product(
+async def get_closest_product(
     name: str | None = None,
     unit_price: float | None = None,
     max_results: int = Query(default=10, le=100),
@@ -35,26 +32,31 @@ def get_closest_product(
             detail="At least one of name or unit_price must be provided",
         )
 
-    products = get_all_products(session)
-
-    matches = find_closest_products(
-        products=products, item_name=name, item_price=unit_price, threshold=threshold
+    logger.info(
+        f"Enqueueing product matching task for name='{name}', price={unit_price}"
     )
+
+    # Use the task directly from the worker
+    task = find_closest_products_with_preload.delay(
+        item_name=name,
+        item_price=unit_price,
+        threshold=threshold,
+    )
+
+    try:
+        matches = task.get(timeout=10)  # Wait for up to 10 seconds for the result
+    except Exception as e:
+        logger.error(f"Error getting task result: {str(e)}")
+        raise HTTPException(status_code=500, detail="Error processing product matching")
+
+    if not matches:
+        logger.warning(f"No matches found for query: name='{name}', price={unit_price}")
+        return []
 
     logger.info(
         f"Found {len(matches)} matches for query: name='{name}', price={unit_price}"
     )
-    for match in matches[:5]:
-        logger.debug(
-            f"  Match: {match.product.name}, {match.product.price:.2f} € (Score: {match.score:.2f})"
-        )
-
-    return [
-        ProductMatch(
-            score=match.score, product=ProductPublic.model_validate(match.product)
-        )
-        for match in matches[:max_results]
-    ]
+    return matches[:max_results]
 
 
 @router.get("/{product_id}", response_model=ProductPublic)
@@ -63,10 +65,7 @@ def get_product(product_id: str, session: Session = Depends(get_session)):
     result = next(
         iter([product for product in products if product.id == product_id]), None
     )
-
     if result is None:
         raise HTTPException(status_code=404, detail="Product not found")
-
     product = result
-
     return ProductPublic.model_validate(product)

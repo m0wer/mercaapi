@@ -1,3 +1,6 @@
+from celery import group
+from celery.result import allow_join_result
+
 import os
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form
 from sqlmodel import Session
@@ -14,9 +17,9 @@ from app.models import (
     ItemStats,
     ExtractedTicketInfo,
     ProductPublic,
+    ProductMatch,
 )
-from app.shared.cache import get_all_products
-from app.shared.product_matcher import find_closest_products
+from app.worker import find_closest_products_with_preload
 from app.ai.ticket import AIInformationExtractor
 
 router = APIRouter(prefix="/ticket", tags=["ticket"])
@@ -84,73 +87,6 @@ def calculate_item_stats(
 
 
 @router.post("/", response_model=TicketStats)
-async def process_ticket_and_calculate_stats(
-    file: Union[UploadFile, None] = File(None),
-    image_url: Union[str, None] = Form(None),
-    session: Session = Depends(get_session),
-):
-    if file is None and image_url is None:
-        raise HTTPException(
-            status_code=400, detail="Either file or image_url must be provided"
-        )
-
-    try:
-        with TemporaryDirectory() as temp_dir:
-            if file:
-                temp_file_path = Path(temp_dir) / file.filename
-                with temp_file_path.open("wb") as buffer:
-                    buffer.write(await file.read())
-            elif image_url:
-                response = requests.get(image_url)
-                response.raise_for_status()
-                temp_file_path = Path(temp_dir) / "image_from_url"
-                temp_file_path.write_bytes(response.content)
-
-            ticket_info: ExtractedTicketInfo = await extractor.process_file_ticket(
-                temp_file_path, TICKET_PROMPT
-            )
-
-        all_products = get_all_products(session)
-        ticket_items = []
-
-        for item in ticket_info.items:
-            closest_products = find_closest_products(
-                all_products, item.name, item.unit_price
-            )
-
-            if not closest_products:
-                logger.warning(f"No match found for product '{item.name}'.")
-                continue
-
-            product = closest_products[0].product
-            logger.info(
-                f"Best match for '{item.name}': {product.name} (Score: {closest_products[0].score:.2f})"
-            )
-
-            item_stats = calculate_item_stats(
-                product, item.quantity, item.total_price or 0
-            )
-
-            ticket_item = TicketItem(
-                product=ProductPublic.model_validate(product),
-                original_name=item.name,
-                quantity=item.quantity,
-                unit_price=item.unit_price or 0,
-                total_price=item.total_price or 0,
-                stats=item_stats,
-            )
-            ticket_items.append(ticket_item)
-
-        return TicketStats(items=ticket_items)
-
-    except Exception as e:
-        logger.error(f"Error processing ticket: {str(e)}")
-        raise HTTPException(
-            status_code=500, detail=f"Error processing ticket: {str(e)}"
-        )
-
-
-@router.post("/", response_model=TicketStats)
 async def process_ticket(
     file: Union[UploadFile, None] = File(None),
     image_url: Union[str, None] = Form(None),
@@ -162,6 +98,7 @@ async def process_ticket(
         )
 
     try:
+        # Process image file
         with TemporaryDirectory() as temp_dir:
             if file:
                 temp_file_path = Path(temp_dir) / file.filename
@@ -173,25 +110,46 @@ async def process_ticket(
                 temp_file_path = Path(temp_dir) / "image_from_url"
                 temp_file_path.write_bytes(response.content)
 
+            # Extract ticket information
             ticket_info: ExtractedTicketInfo = await extractor.process_file_ticket(
                 temp_file_path, TICKET_PROMPT
             )
 
-        all_products = get_all_products(session)
+        # Create a group of tasks for product matching
+        product_tasks = group(
+            [
+                find_closest_products_with_preload.s(
+                    item_name=item.name,
+                    item_price=item.unit_price,
+                )
+                for item in ticket_info.items
+            ]
+        )
+        group_result = product_tasks.apply_async()
+
+        # Wait for all tasks to complete with timeout
+        with allow_join_result():
+            try:
+                results = group_result.get(
+                    timeout=20
+                )  # 20 second timeout for entire group
+            except Exception as e:
+                logger.error(f"Error waiting for product matching tasks: {str(e)}")
+                raise HTTPException(
+                    status_code=500, detail="Timeout or error while matching products"
+                )
+
+        # Process results and create ticket items
         ticket_items = []
-
-        for item in ticket_info.items:
-            closest_products = find_closest_products(
-                all_products, item.name, item.unit_price
-            )
-
-            if not closest_products:
-                logger.warning(f"No match found for product '{item.name}'.")
+        for item, result in zip(ticket_info.items, results):
+            if not result:
+                logger.warning(f"No match found for product '{item.name}'")
                 continue
 
-            product = closest_products[0].product
+            product_match = ProductMatch.model_validate(result[0])
+            product = product_match.product
             logger.info(
-                f"Best match for '{item.name}': {product.name} (Score: {closest_products[0].score:.2f})"
+                f"Best match for '{item.name}': {product.name} (Score: {product_match.score:.2f})"
             )
 
             item_stats = calculate_item_stats(
