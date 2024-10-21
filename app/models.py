@@ -73,6 +73,28 @@ class NutritionalInformation(NutritionalInformationBase, table=True):
     product: "Product" = Relationship(back_populates="nutritional_information")
 
 
+class WrongMatchReport(SQLModel, table=True):
+    id: int = Field(default=None, primary_key=True)
+    original_name: str
+    original_price: float
+    wrong_match_id: str = Field(foreign_key="product.id")
+    wrong_match: "Product" = Relationship(back_populates="wrong_match_reports")
+    timestamp: datetime = Field(default_factory=datetime.utcnow)
+    status: str = Field(default="pending")  # pending, reviewed, rejected
+    notes: str | None = None
+
+
+class WrongNutritionReport(SQLModel, table=True):
+    id: int = Field(default=None, primary_key=True)
+    product_id: str = Field(foreign_key="product.id")
+    product: "Product" = Relationship(back_populates="nutrition_reports")
+    nutrition_id: int = Field(foreign_key="nutritionalinformation.id")
+    nutritional_information: NutritionalInformation = Relationship()
+    timestamp: datetime = Field(default_factory=datetime.utcnow)
+    status: str = Field(default="pending")  # pending, reviewed, rejected
+    notes: str | None = None
+
+
 class Product(ProductBase, table=True):
     category: Category = Relationship(back_populates="products")
     images: List[ProductImage] = Relationship(
@@ -81,6 +103,12 @@ class Product(ProductBase, table=True):
     price_history: List["PriceHistory"] = Relationship(back_populates="product")
     nutritional_information: Union[NutritionalInformation, None] = Relationship(
         back_populates="product", sa_relationship_kwargs={"lazy": "joined"}
+    )
+    wrong_match_reports: List[WrongMatchReport] = Relationship(
+        back_populates="wrong_match"
+    )
+    nutrition_reports: List[WrongNutritionReport] = Relationship(
+        back_populates="product"
     )
 
 

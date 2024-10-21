@@ -10,5 +10,7 @@ celery_app.conf.update(
     accept_content=["json"],
     task_routes={
         "app.worker.find_closest_products_with_preload": {"queue": "high"},
+        "app.worker.process_wrong_match_report": {"queue": "low"},
+        "app.worker.process_wrong_nutrition_report": {"queue": "low"},
     },
 )

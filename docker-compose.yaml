@@ -2,7 +2,7 @@ services:
   app:
     build: .
     image: ghcr.io/m0wer/mercaapi:master
-    command: fastapi run --reload --port 80
+    command: python -m fastapi run --reload --port 80
     ports:
       - "8000:80"
     volumes:
@@ -18,6 +18,8 @@ services:
     depends_on:
       - redis
       - worker-high
+      - worker-low
+    user: '1000:1000'
     deploy:
       resources:
         limits:
@@ -38,6 +40,7 @@ services:
       - CELERY_RESULT_BACKEND=redis://redis:6379/0
     depends_on:
       - redis
+    user: '1000:1000'
     deploy:
       resources:
         limits:
@@ -50,6 +53,7 @@ services:
       - "6379:6379"
     volumes:
       - ./redis:/data
+    user: '1000:1000'
     deploy:
       resources:
         limits:
@@ -59,7 +63,7 @@ services:
 
   worker-high:
     build: .
-    command: celery -A app.worker worker -Q high -c 8 -l DEBUG
+    command: python -m celery -A app.worker worker -Q high -c 8 -l DEBUG
     environment:
       - CELERY_BROKER_URL=redis://redis:6379/0
       - CELERY_RESULT_BACKEND=redis://redis:6379/0
@@ -77,9 +81,29 @@ services:
           memory: 2G
     restart: always
 
+  worker-low:
+    build: .
+    command: python -m celery -A app.worker worker -Q low -c 1 -l DEBUG
+    environment:
+      - CELERY_BROKER_URL=redis://redis:6379/0
+      - CELERY_RESULT_BACKEND=redis://redis:6379/0
+      - PYTHONPATH=/app
+    volumes:
+      - ./app:/app/app
+      - ./mercadona.db:/app/mercadona.db
+    depends_on:
+      - redis
+    user: '1000:1000'
+    deploy:
+      resources:
+        limits:
+          cpus: '1'
+          memory: 300M
+    restart: always
+
   flower:
     image: mher/flower
-    command: celery flower --broker=redis://redis:6379/0 --port=5555
+    command: python -m celery flower --broker=redis://redis:6379/0 --port=5555
     ports:
       - "5555:5555"
     environment:
@@ -88,6 +112,7 @@ services:
     depends_on:
       - redis
       - worker-high
+    user: '1000:1000'
     deploy:
       resources:
         limits:

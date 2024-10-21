@@ -12,6 +12,10 @@ WORKDIR /app
 COPY ./requirements.txt /app/requirements.txt
 RUN pip install --no-cache-dir --upgrade -r /app/requirements.txt
 
+RUN useradd app && \
+    chown -R app:app /app
+USER app
+
 COPY ./app /app/app
 COPY ./main.py /app/main.py
 COPY ./cli.py /app/cli.py

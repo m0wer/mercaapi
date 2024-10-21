@@ -6,7 +6,7 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.responses import RedirectResponse
 from loguru import logger
 
-from app.routers import products, categories, ticket
+from app.routers import products, categories, ticket, reports
 
 # Configure loguru
 logger.remove()
@@ -34,6 +34,7 @@ async def add_process_time_header(request: Request, call_next):
 api_router.include_router(products.router)
 api_router.include_router(categories.router)
 api_router.include_router(ticket.router)
+api_router.include_router(reports.router)
 
 # Mount the API router
 app.mount("/api", api_router)
