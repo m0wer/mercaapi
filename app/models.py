@@ -1,5 +1,5 @@
 from datetime import datetime
-from typing import Union, Any, List
+from typing import Union, Any, List, Tuple
 from typing_extensions import Self
 
 from sqlmodel import SQLModel, Field, Relationship
@@ -53,6 +53,21 @@ class ProductBase(SQLModel):
 class PriceHistoryBase(SQLModel):
     price: float
     timestamp: datetime
+
+
+class TicketBase(SQLModel):
+    ticket_number: int | None = None
+    date: str | None = None
+    time: str | None = None
+    total_price: float | None = None
+    processed_at: datetime = Field(default_factory=datetime.utcnow)
+
+
+class TicketItemBase(SQLModel):
+    name: str
+    quantity: int
+    total_price: float
+    unit_price: float
 
 
 # DB models
@@ -118,9 +133,20 @@ class PriceHistory(PriceHistoryBase, table=True):
     product: Product = Relationship(back_populates="price_history")
 
 
+class Ticket(TicketBase, table=True):
+    id: int = Field(default=None, primary_key=True)
+    items: List["TicketItem"] = Relationship(back_populates="ticket")
+
+
+class TicketItem(TicketItemBase, table=True):
+    id: int = Field(default=None, primary_key=True)
+    ticket_id: int = Field(foreign_key="ticket.id")
+    ticket: Ticket = Relationship(back_populates="items")
+    matched_product_id: str | None = Field(default=None, foreign_key="product.id")
+    matched_product: Product | None = Relationship()
+
+
 # Helper functions
-
-
 def is_food_category(category: Category) -> bool:
     if 1 <= category.id <= 19:
         return True
@@ -162,7 +188,7 @@ class PriceHistoryPublic(PriceHistoryBase):
     product_id: str
 
 
-# Other models (unchanged)
+# Stats and analysis models
 class ItemStats(BaseModel):
     calories: float | None
     proteins: float | None
@@ -176,7 +202,7 @@ class ItemStats(BaseModel):
     kcal_per_euro: float | None
 
 
-class TicketItem(BaseModel):
+class TicketItemPublic(BaseModel):
     product: ProductPublic
     original_name: str
     quantity: int
@@ -186,7 +212,7 @@ class TicketItem(BaseModel):
 
 
 class TicketStats(BaseModel):
-    items: List[TicketItem]
+    items: List[TicketItemPublic]
 
 
 class ProductMatch(BaseModel):
@@ -198,22 +224,6 @@ def default_quantity(v: Any) -> int:
     if v is None:
         return 1
     return v
-
-
-class TicketInfo(BaseModel):
-    ticket_number: int | None = None
-    date: str | None = None
-    time: str | None = None
-    total_price: float | None = None
-    items: list[TicketItem]
-
-    @model_validator(mode="after")
-    def guess_total(self):
-        if self.total_price is None:
-            self.total_price = sum(
-                item.total_price for item in self.items if item.total_price is not None
-            )
-        return self
 
 
 class ExtractedTicketItem(BaseModel):
@@ -229,7 +239,6 @@ class ExtractedTicketItem(BaseModel):
             if values["quantity"] > 0
             else 0.0
         )
-
         return values
 
 
@@ -239,3 +248,24 @@ class ExtractedTicketInfo(BaseModel):
     time: str | None
     total_price: float | None
     items: List[ExtractedTicketItem]
+
+    def to_db_models(self) -> Tuple[Ticket, List[TicketItem]]:
+        """Convert ExtractedTicketInfo to database models"""
+        ticket = Ticket(
+            ticket_number=self.ticket_number,
+            date=self.date,
+            time=self.time,
+            total_price=self.total_price,
+        )
+
+        ticket_items = [
+            TicketItem(
+                name=item.name,
+                quantity=item.quantity,
+                total_price=item.total_price,
+                unit_price=item.unit_price,
+            )
+            for item in self.items
+        ]
+
+        return ticket, ticket_items

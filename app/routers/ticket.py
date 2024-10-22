@@ -13,7 +13,7 @@ import requests
 from app.database import get_session
 from app.models import (
     TicketStats,
-    TicketItem,
+    TicketItemPublic,
     ItemStats,
     ExtractedTicketInfo,
     ProductPublic,
@@ -115,6 +115,15 @@ async def process_ticket(
                 temp_file_path, TICKET_PROMPT
             )
 
+        # Save ticket information to database
+        ticket, tis = ticket_info.to_db_models()
+        session.add(ticket)
+        session.flush()  # Flush to get the ticket ID
+
+        for ti in tis:
+            ti.ticket_id = ticket.id
+            session.add(ti)
+
         # Create a group of tasks for product matching
         product_tasks = group(
             [
@@ -156,7 +165,7 @@ async def process_ticket(
                 product, item.quantity, item.total_price or 0
             )
 
-            ticket_item = TicketItem(
+            ticket_item = TicketItemPublic(
                 product=ProductPublic.model_validate(product),
                 original_name=item.name,
                 quantity=item.quantity,
