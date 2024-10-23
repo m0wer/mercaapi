@@ -222,6 +222,7 @@ class AIInformationExtractor:
         )
 
         if response.status_code == 200:
+            logger.debug(f"Extract ticket AI response: {response.json()}")
             json_str = response.json()["candidates"][0]["content"]["parts"][0]["text"]
             json_str = re.sub(r"^```json\s*\n", "", json_str)
             json_str = re.sub(r"\n\s*```$", "", json_str)
