@@ -228,17 +228,29 @@ def default_quantity(v: Any) -> int:
 
 class ExtractedTicketItem(BaseModel):
     name: str
-    quantity: int
-    total_price: float
-    unit_price: float
+    quantity: int = Field(default=1)  # Default quantity to 1 if not provided
+    total_price: float | None = None
+    unit_price: float | None = None
 
     @model_validator(mode="before")
-    def calculate_total_price(cls, values: Any) -> Any:
-        values["unit_price"] = (
-            values["total_price"] / values["quantity"]
-            if values["quantity"] > 0
-            else 0.0
-        )
+    def calculate_prices(cls, values: Any) -> Any:
+        # Handle cases where total_price is None
+        if values.get("total_price") is None and values.get("unit_price") is not None:
+            values["total_price"] = values["unit_price"] * values.get("quantity", 1)
+
+        # Handle cases where unit_price is None
+        if values.get("unit_price") is None and values.get("total_price") is not None:
+            quantity = values.get("quantity", 1)
+            if quantity > 0:
+                values["unit_price"] = values["total_price"] / quantity
+            else:
+                values["unit_price"] = 0.0
+
+        # If both prices are None, set them to 0
+        if values.get("total_price") is None and values.get("unit_price") is None:
+            values["total_price"] = 0.0
+            values["unit_price"] = 0.0
+
         return values
 
 
