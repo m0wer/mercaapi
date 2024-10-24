@@ -228,9 +228,16 @@ def default_quantity(v: Any) -> int:
 
 class ExtractedTicketItem(BaseModel):
     name: str
-    quantity: int = Field(default=1)  # Default quantity to 1 if not provided
+    quantity: int = 1
     total_price: float | None = None
     unit_price: float | None = None
+
+    @model_validator(mode="before")
+    @classmethod
+    def transform_quantity(cls, values: Any) -> Any:
+        if isinstance(values, dict) and values.get("quantity") is None:
+            values["quantity"] = 1
+        return values
 
     @model_validator(mode="before")
     def calculate_prices(cls, values: Any) -> Any:
