@@ -9,6 +9,7 @@ from pathlib import Path
 from tempfile import TemporaryDirectory
 from typing import Union, Optional
 import requests
+import shutil
 
 from app.database import get_session
 from app.models import (
@@ -114,9 +115,19 @@ async def process_ticket(
                 temp_file_path.write_bytes(response.content)
 
             # Extract ticket information
-            ticket_info: ExtractedTicketInfo = await extractor.process_file_ticket(
-                temp_file_path, TICKET_PROMPT
-            )
+            try:
+                ticket_info: ExtractedTicketInfo = await extractor.process_file_ticket(
+                    temp_file_path, TICKET_PROMPT
+                )
+            except Exception as e:
+                logger.error(f"Error extracting ticket information: {e}")
+                # copy failed file for review to /tmp/failed/
+                failed_dir = Path("/tmp/failed")
+                failed_dir.mkdir(exist_ok=True)
+                shutil.copy(temp_file_path, failed_dir / temp_file_path.name)
+                raise HTTPException(
+                    status_code=400, detail="Failed to extract ticket information"
+                ) from e
 
         # Save ticket information to database
         ticket, tis = ticket_info.to_db_models()
