@@ -2,7 +2,7 @@ name: image build
 on:
   workflow_run:
     workflows:
-      - Run Tests
+      - pre-commit
     branches:
       - master
     types:
