@@ -228,7 +228,7 @@ def default_quantity(v: Any) -> int:
 
 class ExtractedTicketItem(BaseModel):
     name: str
-    quantity: int = 1
+    quantity: float = 1
     total_price: float | None = None
     unit_price: float | None = None
 
@@ -236,7 +236,7 @@ class ExtractedTicketItem(BaseModel):
     @classmethod
     def transform_quantity(cls, values: Any) -> Any:
         if isinstance(values, dict) and values.get("quantity") is None:
-            values["quantity"] = 1
+            values["quantity"] = 1.0
         return values
 
     @model_validator(mode="before")
@@ -247,7 +247,7 @@ class ExtractedTicketItem(BaseModel):
 
         # Handle cases where unit_price is None
         if values.get("unit_price") is None and values.get("total_price") is not None:
-            quantity = values.get("quantity", 1)
+            quantity = values.get("quantity", 1.0)
             if quantity > 0:
                 values["unit_price"] = values["total_price"] / quantity
             else:
