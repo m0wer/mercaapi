@@ -57,7 +57,7 @@ Ensure all numeric values are numbers, not strings.
 
 
 def calculate_item_stats(
-    product: ProductPublic, quantity: int, total_price: float
+    product: ProductPublic, quantity: float, total_price: float
 ) -> Optional[ItemStats]:
     if product.nutritional_information is None:
         return None

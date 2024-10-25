@@ -205,7 +205,7 @@ class ItemStats(BaseModel):
 class TicketItemPublic(BaseModel):
     product: ProductPublic
     original_name: str
-    quantity: int
+    quantity: float
     unit_price: float
     total_price: float
     stats: ItemStats | None
@@ -220,15 +220,9 @@ class ProductMatch(BaseModel):
     product: ProductPublic
 
 
-def default_quantity(v: Any) -> int:
-    if v is None:
-        return 1
-    return v
-
-
 class ExtractedTicketItem(BaseModel):
     name: str
-    quantity: float = 1
+    quantity: float = 1.0
     total_price: float | None = None
     unit_price: float | None = None
 
