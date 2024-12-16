@@ -6,7 +6,7 @@ celery
 click
 fastapi[standard]
 flower
-thefuzz
+fuzzywuzzy
 google-generativeai
 loguru
 ocrmypdf
