@@ -2,11 +2,11 @@ import sys
 import time
 
 from fastapi import FastAPI, Request
+from fastapi.responses import FileResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
-from fastapi.responses import RedirectResponse
 from loguru import logger
 
-from app.routers import products, categories, ticket, reports
+from app.routers import categories, products, reports, ticket
 
 # Configure loguru
 logger.remove()
@@ -38,6 +38,13 @@ api_router.include_router(reports.router)
 
 # Mount the API router
 app.mount("/api", api_router)
+
+
+# Serve SKILL.md at /SKILL.md
+@app.get("/SKILL.md")
+async def skill_md():
+    return FileResponse("SKILL.md", media_type="text/markdown")
+
 
 # Serve static files
 app.mount("/", StaticFiles(directory="static", html=True), name="static")
