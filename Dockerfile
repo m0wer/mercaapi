@@ -22,5 +22,6 @@ COPY ./cli.py /app/cli.py
 COPY ./alembic.ini /app/alembic.ini
 COPY ./migrations/ /app/migrations
 COPY ./static/ /app/static
+COPY ./SKILL.md /app/SKILL.md
 
 CMD ["fastapi", "run", "main.py", "--port", "80", "--host", "0.0.0.0", "--workers", "4", "--proxy-headers"]

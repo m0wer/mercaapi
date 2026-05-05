@@ -1,5 +1,6 @@
 import sys
 import time
+from pathlib import Path
 
 from fastapi import FastAPI, Request
 from fastapi.responses import FileResponse, RedirectResponse
@@ -43,7 +44,7 @@ app.mount("/api", api_router)
 # Serve SKILL.md at /SKILL.md
 @app.get("/SKILL.md")
 async def skill_md():
-    return FileResponse("SKILL.md", media_type="text/markdown")
+    return FileResponse(Path(__file__).parent / "SKILL.md", media_type="text/markdown")
 
 
 # Serve static files
