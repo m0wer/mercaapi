@@ -1,3 +1,4 @@
+from celery.signals import worker_ready
 from loguru import logger
 
 from app.celery_config import celery_app
@@ -6,7 +7,7 @@ from app.models import WrongMatchReport, WrongNutritionReport
 from app.shared.cache import get_all_products
 from app.shared.product_matcher import find_closest_products_task
 
-products = []
+products: list = []
 
 
 @celery_app.on_after_configure.connect
@@ -23,16 +24,29 @@ def reload_products():
     logger.info(f"Reloaded {len(products)} products for matching")
 
 
-# Preload products when worker starts
-products = get_all_products(next(get_session()))
-logger.info(f"Preloaded {len(products)} products for matching")
+def get_products() -> list:
+    """Load products on first use so importing this module needs no database."""
+    global products
+    if not products:
+        products = get_all_products(next(get_session()))
+        logger.info(f"Loaded {len(products)} products for matching")
+    return products
+
+
+@worker_ready.connect
+def preload_products(**kwargs):
+    """Warm the product cache when a celery worker starts."""
+    try:
+        get_products()
+    except Exception as e:
+        logger.error(f"Failed to preload products: {e}")
 
 
 @celery_app.task
 def find_closest_products_with_preload(*args, **kwargs):
     return [
         result.model_dump()
-        for result in find_closest_products_task(products, *args, **kwargs)
+        for result in find_closest_products_task(get_products(), *args, **kwargs)
     ]
 
 

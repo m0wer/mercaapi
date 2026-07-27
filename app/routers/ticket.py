@@ -1,7 +1,7 @@
 from celery import group
 from celery.result import allow_join_result
 
-import os
+from functools import lru_cache
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form
 from sqlmodel import Session
 from loguru import logger
@@ -25,14 +25,12 @@ from app.ai.ticket import AIInformationExtractor
 
 router = APIRouter(prefix="/ticket", tags=["ticket"])
 
-gemini_api_key = os.environ.get("GEMINI_API_KEY")
-groq_api_key = os.environ.get("GROQ_API_KEY")
-if not gemini_api_key or not groq_api_key:
-    raise RuntimeError("GEMINI_API_KEY or GROQ_API_KEY environment variable is not set")
 
-extractor = AIInformationExtractor(
-    gemini_api_key=gemini_api_key, groq_api_key=groq_api_key
-)
+@lru_cache()
+def get_extractor() -> AIInformationExtractor:
+    """Create the AI extractor lazily so imports do not require env vars."""
+    return AIInformationExtractor()
+
 
 TICKET_PROMPT = """
 Extract all products/items from this image.
@@ -116,8 +114,10 @@ async def process_ticket(
 
             # Extract ticket information
             try:
-                ticket_info: ExtractedTicketInfo = await extractor.process_file_ticket(
-                    temp_file_path, TICKET_PROMPT
+                ticket_info: ExtractedTicketInfo = (
+                    await get_extractor().process_file_ticket(
+                        temp_file_path, TICKET_PROMPT
+                    )
                 )
             except Exception as e:
                 logger.error(f"Error extracting ticket information: {e}")
