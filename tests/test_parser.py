@@ -60,9 +60,9 @@ def test_update_existing_product_price(seeded_engine, monkeypatch):
     assert new_count == 0
     assert updated_count == 1
     with Session(seeded_engine) as session:
-        product = session.exec(
-            select(Product).where(Product.id == "1000")
-        ).unique().one()
+        product = (
+            session.exec(select(Product).where(Product.id == "1000")).unique().one()
+        )
         assert product.price == 6.5
         assert product.name == "Aceite de oliva virgen"
         history = session.exec(select(PriceHistory)).all()
@@ -91,9 +91,9 @@ def test_add_new_product(seeded_engine, monkeypatch):
     assert new_count == 1
     assert updated_count == 0
     with Session(seeded_engine) as session:
-        product = session.exec(
-            select(Product).where(Product.id == "2000")
-        ).unique().one()
+        product = (
+            session.exec(select(Product).where(Product.id == "2000")).unique().one()
+        )
         assert product.price == 1.2
         history = session.exec(select(PriceHistory)).all()
         assert len(history) == 1

@@ -131,3 +131,27 @@ class TestIsPlausibleNutrition:
 
     def test_missing_values_are_plausible(self):
         assert is_plausible_nutrition({"calories": None})
+
+    def test_spirits_are_plausible(self):
+        # Alcohol calories come from ethanol, not from macros.
+        assert is_plausible_nutrition(
+            {
+                "calories": 250,
+                "total_fat": 0,
+                "total_carbohydrate": 0,
+                "protein": 0,
+                "salt": 0,
+            }
+        )
+
+    def test_zero_calorie_sweeteners_are_plausible(self):
+        # Polyol sweeteners report ~100 g of carbohydrates with 0 kcal.
+        assert is_plausible_nutrition(
+            {
+                "calories": 0,
+                "total_fat": 0,
+                "total_carbohydrate": 99.5,
+                "protein": 0,
+                "salt": 0,
+            }
+        )

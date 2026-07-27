@@ -157,10 +157,15 @@ def is_plausible_nutrition(values: dict[str, Any]) -> bool:
 
     # Calories should roughly match the Atwater estimate from macros.
     if calories is not None and len(macros) == 3:
-        estimated = 9 * (fat or 0) + 4 * (carbs or 0) + 4 * (protein or 0)
-        if estimated > 100 and calories < estimated * 0.4:
+        # Lower bound ignores carbohydrates: polyol sweeteners legitimately
+        # report ~100 g of carbohydrates with 0 kcal.
+        minimum = 9 * (fat or 0) + 4 * (protein or 0)
+        if minimum > 100 and calories < minimum * 0.4:
             return False
-        if calories > 100 and calories > estimated * 2.5 + 100:
+        # Upper bound allows for alcohol: spirits report ~200-300 kcal per
+        # 100 ml with zero fat, carbohydrates, and protein.
+        estimated = minimum + 4 * (carbs or 0)
+        if calories > estimated * 2.5 + 320:
             return False
 
     return True
@@ -178,9 +183,7 @@ class NutritionAI:
         """Extract nutrition facts from product images (single AI call)."""
         if not image_urls:
             return None
-        content: list[dict[str, Any]] = [
-            {"type": "text", "text": EXTRACTION_PROMPT}
-        ]
+        content: list[dict[str, Any]] = [{"type": "text", "text": EXTRACTION_PROMPT}]
         content.extend(image_content_from_url(url) for url in image_urls)
         try:
             raw = self.client.complete_json([{"role": "user", "content": content}])
@@ -189,9 +192,7 @@ class NutritionAI:
             return None
         return clean_nutrition_facts(NutritionFacts.model_validate(raw))
 
-    def estimate_from_product(
-        self, product: Product
-    ) -> dict[str, float | None] | None:
+    def estimate_from_product(self, product: Product) -> dict[str, float | None] | None:
         """Estimate nutrition facts from product name/description/category."""
         details = f"Name: {product.name}"
         if product.brand:

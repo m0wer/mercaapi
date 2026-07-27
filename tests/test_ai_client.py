@@ -96,9 +96,7 @@ def test_retryable_error_retries_then_succeeds(monkeypatch):
         FakeResponse(429, {"error": "rate limited"}),
         FakeResponse(200, chat_payload("recovered")),
     ]
-    monkeypatch.setattr(
-        "app.ai.client.requests.post", lambda *a, **k: responses.pop(0)
-    )
+    monkeypatch.setattr("app.ai.client.requests.post", lambda *a, **k: responses.pop(0))
     # Speed up the retry wait for tests.
     monkeypatch.setattr(AIClient.complete.retry, "wait", lambda *a, **k: 0)
     assert client.complete([{"role": "user", "content": "x"}]) == "recovered"
