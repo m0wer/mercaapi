@@ -1,5 +1,5 @@
 import asyncio
-import os
+from concurrent.futures import ThreadPoolExecutor, as_completed
 
 import click
 from loguru import logger
@@ -9,8 +9,7 @@ from sqlalchemy.orm import joinedload
 from app.database import get_engine
 from app.parser import parse_mercadona
 from app.models import Product, NutritionalInformation, is_food_category
-from app.ai.nutrition_facts import NutritionFactsExtractor
-from app.ai.nutrition_estimator import estimate_nutritional_info
+from app.ai.nutrition import NutritionAI, is_plausible_nutrition, MACRO_FIELDS
 
 
 @click.group()
@@ -19,7 +18,7 @@ def cli():
 
 
 @cli.command()
-@click.option("--max-requests", default=5, help="Maximum requests per minute")
+@click.option("--max-requests", default=5, help="Maximum requests per second")
 @click.option("--update-existing", is_flag=True, help="Update existing products")
 def parse(max_requests, update_existing=False):
     """Parse products from Mercadona API."""
@@ -33,102 +32,160 @@ def parse(max_requests, update_existing=False):
     logger.info("Parsing completed")
 
 
-def clean_numeric(value):
-    if isinstance(value, str):
-        cleaned = "".join(char for char in value if char.isdigit() or char == ".")
-        return float(cleaned) if cleaned else None
-    return value
+def _load_products_missing_nutrition(session: Session) -> list[Product]:
+    """Food products without nutritional information or without calories."""
+    products = (
+        session.exec(
+            select(Product).options(
+                joinedload(Product.category),  # type: ignore[arg-type]
+                joinedload(Product.images),  # type: ignore[arg-type]
+                joinedload(Product.nutritional_information),  # type: ignore[arg-type]
+            )
+        )
+        .unique()
+        .all()
+    )
+    return [
+        product
+        for product in products
+        if product.category
+        and is_food_category(product.category)
+        and (
+            product.nutritional_information is None
+            or product.nutritional_information.calories is None
+        )
+    ]
+
+
+def _save_nutrition(
+    session: Session, product: Product, values: dict[str, float | None]
+) -> None:
+    existing = session.exec(
+        select(NutritionalInformation).where(
+            NutritionalInformation.product_id == product.id
+        )
+    ).first()
+    if existing:
+        for key, value in values.items():
+            setattr(existing, key, value)
+    else:
+        session.add(NutritionalInformation(product_id=product.id, **values))
+    session.commit()
+
+
+def _process_products_nutrition(
+    engine, products: list[Product], workers: int
+) -> tuple[int, int]:
+    """Fetch nutrition for products concurrently, write results sequentially."""
+    if not products:
+        logger.info("No products to process")
+        return 0, 0
+
+    nutrition_ai = NutritionAI()
+    processed = 0
+    failed = 0
+
+    with (
+        ThreadPoolExecutor(max_workers=workers) as executor,
+        Session(engine) as session,
+    ):
+        futures = {
+            executor.submit(nutrition_ai.get_nutrition_for_product, product): product
+            for product in products
+        }
+        for future in as_completed(futures):
+            product = futures[future]
+            try:
+                values = future.result()
+            except Exception as e:
+                logger.error(f"Error processing product {product.id}: {e}")
+                failed += 1
+                continue
+            if values is None:
+                logger.warning(f"No nutrition obtained for product {product.id}")
+                failed += 1
+                continue
+            _save_nutrition(session, product, values)
+            processed += 1
+            logger.info(
+                f"Saved nutrition for product '{product.name}' ({product.id}) "
+                f"[{processed + failed}/{len(products)}]"
+            )
+
+    logger.info(f"Nutrition processing done: {processed} saved, {failed} failed")
+    return processed, failed
 
 
 @cli.command()
-@click.option(
-    "--reprocess-all",
-    is_flag=True,
-    help="Reprocess all products with missing or null calorie information",
-)
-def process_nutritional_information(reprocess_all):
+@click.option("--workers", default=4, help="Concurrent AI requests")
+@click.option("--limit", default=0, help="Maximum products to process (0 = all)")
+def process_nutritional_information(workers, limit):
+    """Add nutritional information to food products that are missing it."""
     logger.info("Processing nutritional information for products")
-    api_key = os.environ.get("GEMINI_API_KEY")
-    assert api_key, "Please set the GEMINI_API_KEY environment variable"
-    nutrition_extractor = NutritionFactsExtractor(api_key)
-
     engine = get_engine()
     with Session(engine) as session:
-        query = select(Product).options(
-            joinedload(Product.category), joinedload(Product.images)
-        )
-        if not reprocess_all:
-            query = query.where(Product.nutritional_information == None)  # noqa: E711
-        else:
-            query = query.outerjoin(NutritionalInformation).where(
-                (NutritionalInformation.id == None)  # noqa: E711
-                | (NutritionalInformation.calories == None)  # noqa: E711
-            )
+        products = _load_products_missing_nutrition(session)
+    logger.info(f"{len(products)} food products missing nutritional information")
+    if limit:
+        products = products[:limit]
+    _process_products_nutrition(engine, products, workers)
 
-        products = session.exec(query).unique()
 
-        for product in products:
-            if product.category and is_food_category(product.category):
-                logger.info(f"Processing product '{product.name}' ({product.id})")
-                nutritional_info = None
-
-                if product.images:
-                    for image in reversed(product.images):
-                        try:
-                            nutritional_info = (
-                                nutrition_extractor.extract_nutrition_facts(
-                                    image.zoom_url
-                                )
-                            )
-                            if (
-                                nutritional_info is not None
-                                and nutritional_info["calories_kcal"] is not None
-                            ):
-                                break
-                        except Exception as e:
-                            logger.error(
-                                f"Error processing image for product {product.id}: {str(e)}"
-                            )
-
-                if (
-                    nutritional_info is None
-                    or nutritional_info["calories_kcal"] is None
-                ):
-                    logger.warning(
-                        f"No nutritional information found in images for product {product.id}. Estimating using LLM."
-                    )
-                    nutritional_info = estimate_nutritional_info(product)
-
-                if nutritional_info:
-                    nutritional_info["calories"] = nutritional_info.pop(
-                        "calories_kcal", None
-                    )
-                    del nutritional_info["calories_kJ"]
-                    cleaned_info = {
-                        key: clean_numeric(value)
-                        for key, value in nutritional_info.items()
-                    }
-
-                    existing_info = product.nutritional_information
-                    if existing_info:
-                        for key, value in cleaned_info.items():
-                            setattr(existing_info, key, value)
-                    else:
-                        db_nutritional_info = NutritionalInformation(
-                            product_id=product.id, **cleaned_info
-                        )
-                        session.add(db_nutritional_info)
-
-                    session.commit()
-                    logger.info(
-                        f"Added/Updated nutritional information for product {product.id}"
-                    )
-            else:
-                logger.warning(
-                    f"Skipping product '{product.name}' ({product.id}), not a food product."
+@cli.command()
+@click.option("--workers", default=4, help="Concurrent AI requests")
+@click.option(
+    "--dry-run", is_flag=True, help="Only report invalid rows, do not reprocess"
+)
+def clean_nutrition(workers, dry_run):
+    """Find implausible nutritional values and reprocess them with AI."""
+    engine = get_engine()
+    with Session(engine) as session:
+        rows = (
+            session.exec(
+                select(Product)
+                .join(NutritionalInformation)
+                .options(
+                    joinedload(Product.category),  # type: ignore[arg-type]
+                    joinedload(Product.images),  # type: ignore[arg-type]
+                    joinedload(Product.nutritional_information),  # type: ignore[arg-type]
                 )
+            )
+            .unique()
+            .all()
+        )
+        invalid_products = []
+        for product in rows:
+            info = product.nutritional_information
+            if info is None:
+                continue
+            values = {"calories": info.calories}
+            values.update({field: getattr(info, field) for field in MACRO_FIELDS})
+            if not is_plausible_nutrition(values):
+                logger.warning(
+                    f"Implausible nutrition for product '{product.name}' "
+                    f"({product.id}): {values}"
+                )
+                invalid_products.append(product)
 
-    logger.info("Nutritional information processing completed")
+    logger.info(f"Found {len(invalid_products)} products with implausible nutrition")
+    if not dry_run and invalid_products:
+        _process_products_nutrition(engine, invalid_products, workers)
+
+
+@cli.command()
+@click.option("--max-requests", default=5, help="Maximum requests per second")
+@click.option("--workers", default=4, help="Concurrent AI requests")
+@click.pass_context
+def update(ctx, max_requests, workers):
+    """Full database update: parse products and prices, then fix nutrition.
+
+    Designed to be run periodically (e.g. from cron).
+    """
+    logger.info("Starting full database update")
+    ctx.invoke(parse, max_requests=max_requests, update_existing=True)
+    ctx.invoke(process_nutritional_information, workers=workers, limit=0)
+    ctx.invoke(clean_nutrition, workers=workers, dry_run=False)
+    logger.info("Full database update completed")
 
 
 if __name__ == "__main__":
