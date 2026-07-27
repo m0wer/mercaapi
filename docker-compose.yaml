@@ -12,8 +12,9 @@ services:
       - ./alembic.ini:/app/alembic.ini
     environment:
       - PYTHONPATH=/app
-      - GEMINI_API_KEY=${GEMINI_API_KEY}
-      - GROQ_API_KEY=${GROQ_API_KEY}
+      - AI_BASE_URL=${AI_BASE_URL}
+      - AI_API_KEY=${AI_API_KEY}
+      - AI_MODEL=${AI_MODEL:-gpt-5.4-mini}
       - CELERY_BROKER_URL=redis://redis:6379/0
       - CELERY_RESULT_BACKEND=redis://redis:6379/0
     depends_on:
@@ -36,8 +37,9 @@ services:
       - .:/app
     environment:
       - PYTHONPATH=/app
-      - GEMINI_API_KEY=${GEMINI_API_KEY}
-      - GROQ_API_KEY=${GROQ_API_KEY}
+      - AI_BASE_URL=${AI_BASE_URL}
+      - AI_API_KEY=${AI_API_KEY}
+      - AI_MODEL=${AI_MODEL:-gpt-5.4-mini}
       - CELERY_BROKER_URL=redis://redis:6379/0
       - CELERY_RESULT_BACKEND=redis://redis:6379/0
     depends_on:
@@ -48,6 +50,26 @@ services:
         limits:
           cpus: '1'
           memory: 256M
+
+  updater:
+    build: .
+    image: ghcr.io/m0wer/mercaapi:master
+    command: python cli.py update
+    profiles:
+      - update
+    volumes:
+      - ./mercadona.db:/app/mercadona.db
+    environment:
+      - PYTHONPATH=/app
+      - AI_BASE_URL=${AI_BASE_URL}
+      - AI_API_KEY=${AI_API_KEY}
+      - AI_MODEL=${AI_MODEL:-gpt-5.4-mini}
+    user: '1000:1000'
+    deploy:
+      resources:
+        limits:
+          cpus: '2'
+          memory: 512M
 
   redis:
     image: redis:7-alpine

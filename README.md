@@ -33,12 +33,37 @@ official channels.
    cd mercaapi
    ```
 
-2. Build and run the Docker containers:
+2. Configure the environment (see `.env.example`):
+   ```
+   cp .env.example .env
+   # Set AI_BASE_URL, AI_API_KEY and AI_MODEL (any OpenAI-compatible endpoint)
+   ```
+
+3. Build and run the Docker containers:
    ```
    docker-compose up -d
    ```
 
-3. The API will be available at `http://localhost:8000` (or the port you've configured).
+4. The API will be available at `http://localhost:8000` (or the port you've configured).
+
+## Updating the database
+
+The `cli.py` script parses the Mercadona API and completes nutritional
+information using an OpenAI-compatible model (vision extraction from product
+photos, with estimation from the product details as fallback):
+
+```
+python cli.py parse --update-existing   # products, categories, and prices
+python cli.py process-nutritional-information  # fill missing nutrition data
+python cli.py clean-nutrition           # reprocess implausible nutrition rows
+python cli.py update                    # all of the above, for cron
+```
+
+To run the full update periodically with Docker, add a cron entry on the host:
+
+```
+0 4 * * 0 cd /path/to/mercaapi && docker compose run --rm updater >> /var/log/mercaapi-update.log 2>&1
+```
 
 ## Usage
 

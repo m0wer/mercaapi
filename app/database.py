@@ -1,7 +1,9 @@
+import os
+
 from sqlmodel import create_engine, Session
 from functools import lru_cache
 
-DATABASE_URL = "sqlite:///./mercadona.db"
+DATABASE_URL = os.environ.get("DATABASE_URL", "sqlite:///./mercadona.db")
 
 
 @lru_cache()

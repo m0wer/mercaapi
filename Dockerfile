@@ -1,11 +1,11 @@
-FROM python:3.11-slim
+FROM python:3.14-slim
 
 RUN apt update \
     && apt install --no-install-recommends -y \
     ghostscript \
     tesseract-ocr-all \
     && rm -rf /var/lib/apt/lists/*
-ENV TESSDATA_PREFIX=/usr/share/tesseract-ocr/4.00/tessdata
+ENV TESSDATA_PREFIX=/usr/share/tesseract-ocr/5/tessdata
 
 WORKDIR /app
 
