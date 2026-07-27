@@ -169,9 +169,11 @@ async def parse_category_products(
         for product in updated_products:
             try:
                 logger.info(f"Updating existing product: ({product.id}) {product.name}")
-                db_product = db_session.exec(
-                    select(Product).where(Product.id == product.id)
-                ).one()
+                db_product = (
+                    db_session.exec(select(Product).where(Product.id == product.id))
+                    .unique()
+                    .one()
+                )
 
                 if db_product.price != product.price:
                     logger.info(
@@ -185,7 +187,7 @@ async def parse_category_products(
                         )
                     )
 
-                for key, value in product.dict().items():
+                for key, value in product.model_dump().items():
                     setattr(db_product, key, value)
                 db_session.commit()
             except Exception as e:
