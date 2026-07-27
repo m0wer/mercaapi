@@ -54,7 +54,7 @@ services:
   updater:
     build: .
     image: ghcr.io/m0wer/mercaapi:master
-    command: python cli.py update
+    command: sh -c "python -m alembic upgrade head && python cli.py update"
     profiles:
       - update
     volumes:
