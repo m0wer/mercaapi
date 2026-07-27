@@ -58,9 +58,7 @@ def upgrade() -> None:
     )
     with op.batch_alter_table("pricehistory") as batch_op:
         batch_op.add_column(
-            sa.Column(
-                "warehouse_id", sqlmodel.sql.sqltypes.AutoString(), nullable=True
-            )
+            sa.Column("warehouse_id", sqlmodel.sql.sqltypes.AutoString(), nullable=True)
         )
         batch_op.create_foreign_key(
             "fk_pricehistory_warehouse_id", "warehouse", ["warehouse_id"], ["id"]
@@ -71,9 +69,7 @@ def downgrade() -> None:
     with op.batch_alter_table("pricehistory") as batch_op:
         batch_op.drop_constraint("fk_pricehistory_warehouse_id", type_="foreignkey")
         batch_op.drop_column("warehouse_id")
-    op.drop_index(
-        "ix_availabilityhistory_product_id", table_name="availabilityhistory"
-    )
+    op.drop_index("ix_availabilityhistory_product_id", table_name="availabilityhistory")
     op.drop_table("availabilityhistory")
     op.drop_table("productwarehousestatus")
     op.drop_table("warehouse")

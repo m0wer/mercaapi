@@ -106,7 +106,9 @@ def test_repeated_sync_is_idempotent(engine):
 
 def test_price_change_recorded_per_warehouse(engine):
     seed(engine)
-    sync_warehouse_availability(engine, "mad3", {"100": {"price": 5.0, "category_id": 1}})
+    sync_warehouse_availability(
+        engine, "mad3", {"100": {"price": 5.0, "category_id": 1}}
+    )
     stats = sync_warehouse_availability(
         engine, "mad3", {"100": {"price": 5.5, "category_id": 1}}
     )

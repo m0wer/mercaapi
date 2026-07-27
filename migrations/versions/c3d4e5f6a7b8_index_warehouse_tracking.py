@@ -28,9 +28,7 @@ def upgrade() -> None:
         "availabilityhistory",
         ["warehouse_id"],
     )
-    op.create_index(
-        "ix_pricehistory_warehouse_id", "pricehistory", ["warehouse_id"]
-    )
+    op.create_index("ix_pricehistory_warehouse_id", "pricehistory", ["warehouse_id"])
 
 
 def downgrade() -> None:

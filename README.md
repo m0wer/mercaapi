@@ -62,6 +62,10 @@ python cli.py clean-nutrition           # reprocess implausible nutrition rows
 python cli.py update                    # all of the above, for cron
 ```
 
+`update` defaults to 5 requests/second for product detail parsing and 12
+requests/second for the lighter warehouse category listings. Override the
+latter with `--availability-max-requests` if the upstream API rate limits it.
+
 ### Warehouse availability tracking
 
 Mercadona serves a different catalog depending on the warehouse that covers

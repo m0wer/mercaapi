@@ -211,9 +211,14 @@ def clean_nutrition(workers, dry_run):
 
 @cli.command()
 @click.option("--max-requests", default=5, help="Maximum requests per second")
+@click.option(
+    "--availability-max-requests",
+    default=12,
+    help="Maximum warehouse listing requests per second",
+)
 @click.option("--workers", default=4, help="Concurrent AI requests")
 @click.pass_context
-def update(ctx, max_requests, workers):
+def update(ctx, max_requests, availability_max_requests, workers):
     """Full database update: parse products and prices, then fix nutrition.
 
     Designed to be run periodically (e.g. from cron).
@@ -221,7 +226,11 @@ def update(ctx, max_requests, workers):
     logger.info("Starting full database update")
     ctx.invoke(parse, max_requests=max_requests, update_existing=True)
     ctx.invoke(discover_warehouses_cmd, max_requests=2, postal_codes_file=None)
-    ctx.invoke(parse_availability_cmd, max_requests=max_requests, warehouses="")
+    ctx.invoke(
+        parse_availability_cmd,
+        max_requests=availability_max_requests,
+        warehouses="",
+    )
     ctx.invoke(process_nutritional_information, workers=workers, limit=0)
     ctx.invoke(clean_nutrition, workers=workers, dry_run=False)
     logger.info("Full database update completed")
