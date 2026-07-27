@@ -54,10 +54,27 @@ photos, with estimation from the product details as fallback):
 
 ```
 python cli.py parse --update-existing   # products, categories, and prices
+python cli.py discover-warehouses       # find warehouses from postal codes
+python cli.py parse-availability        # per-warehouse availability and prices
 python cli.py process-nutritional-information  # fill missing nutrition data
 python cli.py clean-nutrition           # reprocess implausible nutrition rows
 python cli.py update                    # all of the above, for cron
 ```
+
+### Warehouse availability tracking
+
+Mercadona serves a different catalog depending on the warehouse that covers
+the customer's postal code. `discover-warehouses` probes one postal code per
+province and stores the warehouse codes. `parse-availability` then walks each
+warehouse's category listings and tracks, per product and warehouse:
+
+- current availability and price (`GET /api/products/{id}/availability`)
+- availability changes over time
+  (`GET /api/products/{id}/availability/history`)
+- price divergences from the main catalog (in the product price history)
+
+Known warehouses are listed at `GET /api/warehouses/`. Set `active` to false
+in the `warehouse` table to skip a warehouse during updates.
 
 To run the full update periodically with Docker, add a cron entry on the host:
 

@@ -78,6 +78,35 @@ async def parse_categories(session, rate_limiter):
                 )
 
 
+def build_product(product_details: dict, category_id: int) -> Product:
+    """Build a Product (with images) from a product details API response."""
+    return Product(
+        id=product_details["id"],
+        ean=product_details.get("ean"),
+        slug=product_details["slug"],
+        brand=product_details.get("brand"),
+        name=product_details["display_name"],
+        price=float(product_details["price_instructions"]["unit_price"]),
+        category_id=category_id,
+        description=product_details.get("details", {}).get("description"),
+        origin=product_details.get("origin"),
+        packaging=product_details.get("packaging"),
+        unit_name=product_details["price_instructions"].get("unit_name"),
+        unit_size=product_details["price_instructions"].get("unit_size"),
+        is_variable_weight=product_details.get("is_variable_weight", False),
+        is_pack=product_details["price_instructions"].get("is_pack", False),
+        images=[
+            ProductImage(
+                zoom_url=photo["zoom"],
+                regular_url=photo["regular"],
+                thumbnail_url=photo["thumbnail"],
+                perspective=photo["perspective"],
+            )
+            for photo in product_details.get("photos", [])
+        ],
+    )
+
+
 async def parse_products(session, category_id, rate_limiter, existing_product_ids):
     category_data = await fetch(
         session, f"{BASE_URL}/categories/{category_id}", rate_limiter
@@ -89,43 +118,7 @@ async def parse_products(session, category_id, rate_limiter, existing_product_id
                     session, f"{BASE_URL}/products/{product['id']}", rate_limiter
                 )
                 if product_details:
-                    yield Product(
-                        id=product_details["id"],
-                        ean=product_details.get("ean"),
-                        slug=product_details["slug"],
-                        brand=product_details.get("brand"),
-                        name=product_details["display_name"],
-                        price=float(
-                            product_details["price_instructions"]["unit_price"]
-                        ),
-                        category_id=category_id,
-                        description=product_details.get("details", {}).get(
-                            "description"
-                        ),
-                        origin=product_details.get("origin"),
-                        packaging=product_details.get("packaging"),
-                        unit_name=product_details["price_instructions"].get(
-                            "unit_name"
-                        ),
-                        unit_size=product_details["price_instructions"].get(
-                            "unit_size"
-                        ),
-                        is_variable_weight=product_details.get(
-                            "is_variable_weight", False
-                        ),
-                        is_pack=product_details["price_instructions"].get(
-                            "is_pack", False
-                        ),
-                        images=[
-                            ProductImage(
-                                zoom_url=photo["zoom"],
-                                regular_url=photo["regular"],
-                                thumbnail_url=photo["thumbnail"],
-                                perspective=photo["perspective"],
-                            )
-                            for photo in product_details.get("photos", [])
-                        ],
-                    )
+                    yield build_product(product_details, category_id)
 
 
 async def parse_category_products(

@@ -1,7 +1,14 @@
 from fastapi import APIRouter, Depends, HTTPException, Query
-from sqlmodel import Session
+from sqlmodel import Session, select
 from app.database import get_session
-from app.models import ProductMatch, ProductPublic
+from app.models import (
+    AvailabilityHistory,
+    AvailabilityHistoryPublic,
+    ProductAvailabilityPublic,
+    ProductMatch,
+    ProductPublic,
+    ProductWarehouseStatus,
+)
 from app.worker import find_closest_products_with_preload
 from app.shared.cache import get_all_products
 from typing import List
@@ -69,3 +76,35 @@ def get_product(product_id: str, session: Session = Depends(get_session)):
         raise HTTPException(status_code=404, detail="Product not found")
     product = result
     return ProductPublic.model_validate(product)
+
+
+@router.get(
+    "/{product_id}/availability", response_model=List[ProductAvailabilityPublic]
+)
+def get_product_availability(product_id: str, session: Session = Depends(get_session)):
+    """Current availability and price of a product across warehouses."""
+    statuses = session.exec(
+        select(ProductWarehouseStatus).where(
+            ProductWarehouseStatus.product_id == product_id
+        )
+    ).all()
+    if not statuses:
+        raise HTTPException(
+            status_code=404, detail="No availability information for this product"
+        )
+    return statuses
+
+
+@router.get(
+    "/{product_id}/availability/history",
+    response_model=List[AvailabilityHistoryPublic],
+)
+def get_product_availability_history(
+    product_id: str, session: Session = Depends(get_session)
+):
+    """Availability changes of a product across warehouses over time."""
+    return session.exec(
+        select(AvailabilityHistory)
+        .where(AvailabilityHistory.product_id == product_id)
+        .order_by(AvailabilityHistory.timestamp)  # type: ignore[arg-type]
+    ).all()

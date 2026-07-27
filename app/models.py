@@ -53,6 +53,12 @@ class ProductBase(SQLModel):
 class PriceHistoryBase(SQLModel):
     price: float
     timestamp: datetime
+    warehouse_id: str | None = Field(default=None, foreign_key="warehouse.id")
+
+
+class WarehouseBase(SQLModel):
+    postal_code: str | None = None
+    active: bool = True
 
 
 class TicketBase(SQLModel):
@@ -133,6 +139,31 @@ class PriceHistory(PriceHistoryBase, table=True):
     product: Product = Relationship(back_populates="price_history")
 
 
+class Warehouse(WarehouseBase, table=True):
+    id: str = Field(primary_key=True)
+
+
+class ProductWarehouseStatus(SQLModel, table=True):
+    """Current availability and price of a product in a warehouse."""
+
+    product_id: str = Field(foreign_key="product.id", primary_key=True)
+    warehouse_id: str = Field(foreign_key="warehouse.id", primary_key=True)
+    available: bool = True
+    price: float | None = None
+    first_seen: datetime = Field(default_factory=datetime.utcnow)
+    last_seen: datetime = Field(default_factory=datetime.utcnow)
+
+
+class AvailabilityHistory(SQLModel, table=True):
+    """Append-only log of availability changes per product and warehouse."""
+
+    id: int = Field(default=None, primary_key=True)
+    product_id: str = Field(foreign_key="product.id", index=True)
+    warehouse_id: str = Field(foreign_key="warehouse.id")
+    available: bool
+    timestamp: datetime = Field(default_factory=datetime.utcnow)
+
+
 class Ticket(TicketBase, table=True):
     id: int = Field(default=None, primary_key=True)
     items: List["TicketItem"] = Relationship(back_populates="ticket")
@@ -186,6 +217,24 @@ class ProductPublic(ProductBase):
 class PriceHistoryPublic(PriceHistoryBase):
     id: int
     product_id: str
+
+
+class WarehousePublic(WarehouseBase):
+    id: str
+
+
+class ProductAvailabilityPublic(BaseModel):
+    warehouse_id: str
+    available: bool
+    price: float | None
+    first_seen: datetime
+    last_seen: datetime
+
+
+class AvailabilityHistoryPublic(BaseModel):
+    warehouse_id: str
+    available: bool
+    timestamp: datetime
 
 
 # Stats and analysis models

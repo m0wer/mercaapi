@@ -7,7 +7,7 @@ from fastapi.responses import FileResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from loguru import logger
 
-from app.routers import categories, products, reports, ticket
+from app.routers import categories, products, reports, ticket, warehouses
 
 # Configure loguru
 logger.remove()
@@ -36,6 +36,7 @@ api_router.include_router(products.router)
 api_router.include_router(categories.router)
 api_router.include_router(ticket.router)
 api_router.include_router(reports.router)
+api_router.include_router(warehouses.router)
 
 # Mount the API router
 app.mount("/api", api_router)

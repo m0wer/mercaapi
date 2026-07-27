@@ -8,6 +8,7 @@ from sqlalchemy.orm import joinedload
 
 from app.database import get_engine
 from app.parser import parse_mercadona
+from app.warehouses import discover_warehouses, parse_availability
 from app.models import Product, NutritionalInformation, is_food_category
 from app.ai.nutrition import NutritionAI, is_plausible_nutrition, MACRO_FIELDS
 
@@ -30,6 +31,32 @@ def parse(max_requests, update_existing=False):
         )
     )
     logger.info("Parsing completed")
+
+
+@cli.command("discover-warehouses")
+@click.option("--max-requests", default=2, help="Maximum requests per second")
+def discover_warehouses_cmd(max_requests):
+    """Discover Mercadona warehouses by probing one postal code per province."""
+    logger.info("Discovering warehouses")
+    engine = get_engine()
+    count = asyncio.run(discover_warehouses(engine, max_requests))
+    logger.info(f"Discovery completed: {count} warehouses known")
+
+
+@cli.command("parse-availability")
+@click.option("--max-requests", default=5, help="Maximum requests per second")
+@click.option(
+    "--warehouses",
+    default="",
+    help="Comma-separated warehouse ids (default: all active warehouses)",
+)
+def parse_availability_cmd(max_requests, warehouses):
+    """Track per-warehouse product availability and prices."""
+    logger.info("Starting availability tracking")
+    engine = get_engine()
+    warehouse_ids = [wh.strip() for wh in warehouses.split(",") if wh.strip()] or None
+    asyncio.run(parse_availability(engine, max_requests, warehouse_ids))
+    logger.info("Availability tracking completed")
 
 
 def _load_products_missing_nutrition(session: Session) -> list[Product]:
@@ -183,6 +210,8 @@ def update(ctx, max_requests, workers):
     """
     logger.info("Starting full database update")
     ctx.invoke(parse, max_requests=max_requests, update_existing=True)
+    ctx.invoke(discover_warehouses_cmd, max_requests=2)
+    ctx.invoke(parse_availability_cmd, max_requests=max_requests, warehouses="")
     ctx.invoke(process_nutritional_information, workers=workers, limit=0)
     ctx.invoke(clean_nutrition, workers=workers, dry_run=False)
     logger.info("Full database update completed")
