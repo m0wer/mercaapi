@@ -4,6 +4,15 @@ from sqlmodel import SQLModel, Session, create_engine
 from main import api_router
 from app.database import get_session
 from app.models import Product, Category, ProductImage, NutritionalInformation
+from app.shared.cache import cache
+
+
+@pytest.fixture(autouse=True)
+def clear_cache():
+    """Clear the in-memory product cache between tests."""
+    cache.data.clear()
+    yield
+    cache.data.clear()
 
 
 @pytest.fixture(name="engine")
