@@ -84,7 +84,7 @@ class ProductImage(ProductImageBase, table=True):
 
 class NutritionalInformation(NutritionalInformationBase, table=True):
     id: int = Field(default=None, primary_key=True)
-    product_id: str = Field(foreign_key="product.id")
+    product_id: str = Field(foreign_key="product.id", unique=True, index=True)
     product: "Product" = Relationship(back_populates="nutritional_information")
 
 
