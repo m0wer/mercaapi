@@ -53,7 +53,9 @@ class ProductBase(SQLModel):
 class PriceHistoryBase(SQLModel):
     price: float
     timestamp: datetime
-    warehouse_id: str | None = Field(default=None, foreign_key="warehouse.id")
+    warehouse_id: str | None = Field(
+        default=None, foreign_key="warehouse.id", index=True
+    )
 
 
 class WarehouseBase(SQLModel):
@@ -147,7 +149,7 @@ class ProductWarehouseStatus(SQLModel, table=True):
     """Current availability and price of a product in a warehouse."""
 
     product_id: str = Field(foreign_key="product.id", primary_key=True)
-    warehouse_id: str = Field(foreign_key="warehouse.id", primary_key=True)
+    warehouse_id: str = Field(foreign_key="warehouse.id", primary_key=True, index=True)
     available: bool = True
     price: float | None = None
     first_seen: datetime = Field(default_factory=datetime.utcnow)
@@ -159,7 +161,7 @@ class AvailabilityHistory(SQLModel, table=True):
 
     id: int = Field(default=None, primary_key=True)
     product_id: str = Field(foreign_key="product.id", index=True)
-    warehouse_id: str = Field(foreign_key="warehouse.id")
+    warehouse_id: str = Field(foreign_key="warehouse.id", index=True)
     available: bool
     timestamp: datetime = Field(default_factory=datetime.utcnow)
 

@@ -54,7 +54,8 @@ photos, with estimation from the product details as fallback):
 
 ```
 python cli.py parse --update-existing   # products, categories, and prices
-python cli.py discover-warehouses       # find warehouses from postal codes
+python cli.py discover-warehouses       # sample one postcode per province
+python cli.py discover-warehouses --postal-codes-file postcodes.txt  # exhaustive
 python cli.py parse-availability        # per-warehouse availability and prices
 python cli.py process-nutritional-information  # fill missing nutrition data
 python cli.py clean-nutrition           # reprocess implausible nutrition rows
@@ -65,7 +66,8 @@ python cli.py update                    # all of the above, for cron
 
 Mercadona serves a different catalog depending on the warehouse that covers
 the customer's postal code. `discover-warehouses` probes one postal code per
-province and stores the warehouse codes. `parse-availability` then walks each
+province (or every postcode supplied with `--postal-codes-file`) and stores the
+warehouse codes. `parse-availability` then walks each
 warehouse's category listings and tracks, per product and warehouse:
 
 - current availability and price (`GET /api/products/{id}/availability`)

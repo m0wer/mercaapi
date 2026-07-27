@@ -34,29 +34,40 @@ POSTAL_CODE_URL = f"{BASE_URL}/postal-codes/actions/change-pc/"
 PROVINCE_POSTAL_CODES = [f"{i:02d}001" for i in range(1, 53)]
 
 
-async def discover_warehouses(engine, max_requests_per_second: float = 2) -> int:
+async def discover_warehouses(
+    engine,
+    max_requests_per_second: float = 2,
+    postal_codes: list[str] | None = None,
+) -> int:
     """Discover warehouse codes by probing one postal code per province.
 
     New warehouses are stored as active; existing ones keep their state.
     Returns the number of distinct warehouses discovered.
     """
+    postal_codes = postal_codes or PROVINCE_POSTAL_CODES
     rate_limiter = RateLimiter(max_requests_per_second)
+    semaphore = asyncio.Semaphore(20)
     discovered: dict[str, str] = {}
-    async with aiohttp.ClientSession() as session:
-        for postal_code in PROVINCE_POSTAL_CODES:
+
+    async def probe(session: aiohttp.ClientSession, postal_code: str):
+        async with semaphore:
             await rate_limiter.acquire()
             try:
                 async with session.post(
                     POSTAL_CODE_URL, json={"new_postal_code": postal_code}
                 ) as response:
-                    warehouse_id = response.headers.get("x-customer-wh")
+                    return postal_code, response.headers.get("x-customer-wh")
             except aiohttp.ClientError as e:
                 logger.warning(f"Postal code probe failed for {postal_code}: {e}")
-                continue
+                return postal_code, None
+
+    async with aiohttp.ClientSession() as session:
+        results = await asyncio.gather(
+            *(probe(session, postal_code) for postal_code in postal_codes)
+        )
+        for postal_code, warehouse_id in results:
             if warehouse_id:
                 discovered.setdefault(warehouse_id, postal_code)
-            else:
-                logger.warning(f"No warehouse header for postal code {postal_code}")
 
     with Session(engine) as db_session:
         for warehouse_id, postal_code in discovered.items():

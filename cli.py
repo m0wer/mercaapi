@@ -35,11 +35,21 @@ def parse(max_requests, update_existing=False):
 
 @cli.command("discover-warehouses")
 @click.option("--max-requests", default=2, help="Maximum requests per second")
-def discover_warehouses_cmd(max_requests):
+@click.option(
+    "--postal-codes-file",
+    type=click.Path(exists=True, dir_okay=False),
+    help="One postal code per line (default: one representative per province)",
+)
+def discover_warehouses_cmd(max_requests, postal_codes_file):
     """Discover Mercadona warehouses by probing one postal code per province."""
     logger.info("Discovering warehouses")
     engine = get_engine()
-    count = asyncio.run(discover_warehouses(engine, max_requests))
+    postal_codes = None
+    if postal_codes_file:
+        with open(postal_codes_file) as file:
+            postal_codes = [line.strip() for line in file if line.strip()]
+        logger.info(f"Probing {len(postal_codes)} postal codes")
+    count = asyncio.run(discover_warehouses(engine, max_requests, postal_codes))
     logger.info(f"Discovery completed: {count} warehouses known")
 
 
@@ -210,7 +220,7 @@ def update(ctx, max_requests, workers):
     """
     logger.info("Starting full database update")
     ctx.invoke(parse, max_requests=max_requests, update_existing=True)
-    ctx.invoke(discover_warehouses_cmd, max_requests=2)
+    ctx.invoke(discover_warehouses_cmd, max_requests=2, postal_codes_file=None)
     ctx.invoke(parse_availability_cmd, max_requests=max_requests, warehouses="")
     ctx.invoke(process_nutritional_information, workers=workers, limit=0)
     ctx.invoke(clean_nutrition, workers=workers, dry_run=False)
