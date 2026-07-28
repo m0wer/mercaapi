@@ -1,4 +1,5 @@
-from celery.signals import worker_ready
+import os
+
 from loguru import logger
 
 from app.celery_config import celery_app
@@ -33,13 +34,12 @@ def get_products() -> list:
     return products
 
 
-@worker_ready.connect
-def preload_products(**kwargs):
-    """Warm the product cache when a celery worker starts."""
-    try:
-        get_products()
-    except Exception as e:
-        logger.error(f"Failed to preload products: {e}")
+# Workers that serve product matching must load the products at import time,
+# before the prefork pool forks, so all child processes share the data through
+# copy-on-write instead of each loading its own copy on the first task.
+# Gated by an environment variable so the API and tests import lazily.
+if os.environ.get("PRELOAD_PRODUCTS") == "1":
+    get_products()
 
 
 @celery_app.task

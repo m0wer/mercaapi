@@ -1,9 +1,11 @@
 from fastapi import APIRouter, Depends, HTTPException, Query
+from sqlalchemy.orm import joinedload
 from sqlmodel import Session, select
 from app.database import get_session
 from app.models import (
     AvailabilityHistory,
     AvailabilityHistoryPublic,
+    Product,
     ProductAvailabilityPublic,
     ProductMatch,
     ProductPublic,
@@ -68,13 +70,22 @@ async def get_closest_product(
 
 @router.get("/{product_id}", response_model=ProductPublic)
 def get_product(product_id: str, session: Session = Depends(get_session)):
-    products = get_all_products(session)
-    result = next(
-        iter([product for product in products if product.id == product_id]), None
+    product = (
+        session.exec(
+            select(Product)
+            .where(Product.id == product_id)
+            .options(
+                joinedload(Product.category),  # type: ignore[arg-type]
+                joinedload(Product.images),  # type: ignore[arg-type]
+                joinedload(Product.nutritional_information),  # type: ignore[arg-type]
+                joinedload(Product.price_history),  # type: ignore[arg-type]
+            )
+        )
+        .unique()
+        .first()
     )
-    if result is None:
+    if product is None:
         raise HTTPException(status_code=404, detail="Product not found")
-    product = result
     return ProductPublic.model_validate(product)
 
 

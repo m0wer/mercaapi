@@ -3,7 +3,7 @@ from typing import Any, List
 
 from loguru import logger
 from sqlmodel import select, Session
-from sqlalchemy.orm import joinedload
+from sqlalchemy.orm import joinedload, noload
 
 from app.models import Product
 
@@ -28,6 +28,12 @@ cache = Cache()
 
 
 def get_all_products(session: Session) -> List[Product]:
+    """All products with the relations needed for matching and listings.
+
+    Price history is intentionally not loaded: with per-warehouse tracking it
+    contains tens of thousands of rows, which would dominate memory and load
+    time. Use the single-product endpoint for price history.
+    """
     cached_products = cache.get("all_products")
     if cached_products:
         logger.debug("Retrieved products from cache")
@@ -40,7 +46,7 @@ def get_all_products(session: Session) -> List[Product]:
                 joinedload(Product.category),  # type: ignore
                 joinedload(Product.images),  # type: ignore
                 joinedload(Product.nutritional_information),  # type: ignore
-                joinedload(Product.price_history),  # type: ignore
+                noload(Product.price_history),  # type: ignore
             )
         )
         .unique()

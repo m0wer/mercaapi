@@ -92,6 +92,7 @@ services:
       - CELERY_BROKER_URL=redis://redis:6379/0
       - CELERY_RESULT_BACKEND=redis://redis:6379/0
       - PYTHONPATH=/app
+      - PRELOAD_PRODUCTS=1
     volumes:
       - ./app:/app/app
       - ./mercadona.db:/app/mercadona.db
